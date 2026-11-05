@@ -21,6 +21,11 @@ export const MONTHS_NOM = [
   "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
 ];
 
+export const WEEKDAYS = [
+  "воскресенье", "понедельник", "вторник", "среда",
+  "четверг", "пятница", "суббота",
+];
+
 const moneyFmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 
 export function fmtNum(n: number): string {
@@ -41,6 +46,12 @@ export function fmtSigned(amount: number, kind: "income" | "expense"): string {
 export function fmtDate(iso: string): string {
   const { d, m } = parseISO(iso);
   return `${d} ${MONTHS_GEN[m - 1]}`;
+}
+
+/** '2024-05-12' → «воскресенье» */
+export function weekdayOf(iso: string): string {
+  const { y, m, d } = parseISO(iso);
+  return WEEKDAYS[new Date(y, m - 1, d).getDay()];
 }
 
 /** '2024-05-12' → «12 мая 2024» */
