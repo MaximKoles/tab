@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -15,14 +16,30 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Search, UserRound } from "lucide-react";
+import { ArrowDownUp, Check, Copy, HandCoins, Plus, Search, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
-import { clientStats } from "@/lib/analytics";
-import { fmtMoney, fmtDate } from "@/lib/format";
+import { clientStats, type ClientStats } from "@/lib/analytics";
+import { fmtMoney, fmtNum, fmtDate, fmtDateFull } from "@/lib/format";
 import { isPro, FREE_LIMITS } from "@/lib/limits";
-import type { Client } from "@/lib/types";
+import type { Operation } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+const AVATAR_CLASSES = [
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+];
+
+function avatarClass(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_CLASSES[h % AVATAR_CLASSES.length];
+}
 
 function initials(name: string): string {
   return name
@@ -34,6 +51,57 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+/** Контакт в ссылку: @ник → Telegram, телефон → tel:, почта → mailto:, url → ссылка */
+function contactHref(contact: string): string | null {
+  const c = contact.trim();
+  if (!c) return null;
+  if (/^https?:\/\//i.test(c)) return c;
+  if (c.startsWith("@")) return `https://t.me/${c.slice(1)}`;
+  if (/^(t\.me|wa\.me)\//i.test(c)) return `https://${c}`;
+  if (/^\+?[\d\s\-()]{6,}$/.test(c)) return `tel:${c.replace(/[^\d+]/g, "")}`;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c)) return `mailto:${c}`;
+  return null;
+}
+
+type SortKey = "paid" | "name" | "debt" | "recent";
+type FilterKey = "all" | "debt" | "stale";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  paid: "по сумме",
+  name: "по алфавиту",
+  debt: "по долгу",
+  recent: "по свежести",
+};
+
+const STALE_DAYS = 45;
+
+function daysSince(date: string | null): number | null {
+  if (!date) return null;
+  const d = new Date(date);
+  return Math.floor((Date.now() - d.getTime()) / 86_400_000);
+}
+
+/** Платежи клиента, сгруппированные по месяцам */
+function groupByMonth(ops: Operation[]): Array<{ key: string; label: string; total: number; ops: Operation[] }> {
+  const map = new Map<string, Operation[]>();
+  for (const op of ops) {
+    const key = op.date.slice(0, 7);
+    const arr = map.get(key) ?? [];
+    arr.push(op);
+    map.set(key, arr);
+  }
+  return Array.from(map.entries()).map(([key, list]) => {
+    const [y, m] = key.split("-").map(Number);
+    const nom = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"][m - 1];
+    return {
+      key,
+      label: `${nom[0].toUpperCase()}${nom.slice(1)} ${y}`,
+      total: list.reduce((s, o) => s + o.amount, 0),
+      ops: list,
+    };
+  });
+}
+
 export function ClientsView() {
   const { operations, clients, license } = useStore();
   const addClient = useStore((s) => s.addClient);
@@ -41,27 +109,81 @@ export function ClientsView() {
   const deleteClient = useStore((s) => s.deleteClient);
   const openAdd = useUi((s) => s.openAdd);
   const openPro = useUi((s) => s.openPro);
+  // карточка клиента живёт в ui-store — так её открывает и глобальный поиск
+  const detailId = useUi((s) => s.clientDetailId);
+  const closeClient = useUi((s) => s.closeClient);
 
   const [query, setQuery] = useState("");
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("paid");
+  const [filter, setFilter] = useState<FilterKey>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: "", contact: "", note: "" });
+  const [copied, setCopied] = useState(false);
 
   const stats = useMemo(() => clientStats(operations, clients), [operations, clients]);
-  const filtered = stats.filter(
-    (s) =>
-      !query.trim() ||
-      s.client.name.toLowerCase().includes(query.toLowerCase()) ||
-      (s.client.contact ?? "").toLowerCase().includes(query.toLowerCase())
-  );
 
-  const detail = detailId ? stats.find((s) => s.client.id === detailId) : null;
+  const totals = useMemo(() => {
+    const paid = stats.reduce((s, x) => s + x.paidTotal, 0);
+    const debt = stats.reduce((s, x) => s + x.debt, 0);
+    return { paid, debt };
+  }, [stats]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = stats.filter((s) => {
+      if (
+        q &&
+        !s.client.name.toLowerCase().includes(q) &&
+        !(s.client.contact ?? "").toLowerCase().includes(q) &&
+        !(s.client.note ?? "").toLowerCase().includes(q)
+      )
+        return false;
+      if (filter === "debt" && s.debt <= 0) return false;
+      if (filter === "stale") {
+        const d = daysSince(s.lastDate);
+        if (d === null || d < STALE_DAYS) return false;
+      }
+      return true;
+    });
+    const sorted = [...list];
+    switch (sortKey) {
+      case "name":
+        sorted.sort((a, b) => a.client.name.localeCompare(b.client.name, "ru"));
+        break;
+      case "debt":
+        sorted.sort((a, b) => b.debt - a.debt || b.paidTotal - a.paidTotal);
+        break;
+      case "recent":
+        sorted.sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
+        break;
+      default:
+        sorted.sort((a, b) => b.paidTotal - a.paidTotal);
+    }
+    return sorted;
+  }, [stats, query, filter, sortKey]);
+
+  const detail = detailId ? stats.find((s) => s.client.id === detailId) ?? null : null;
+
   const detailOps = useMemo(() => {
     if (!detailId) return [];
     return operations
       .filter((o) => o.clientId === detailId && o.kind === "income")
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
   }, [detailId, operations]);
+
+  const detailMonthGroups = useMemo(() => groupByMonth(detailOps), [detailOps]);
+  const detailSources = useMemo(
+    () => Array.from(new Set(detailOps.map((o) => o.source).filter(Boolean))) as string[],
+    [detailOps]
+  );
+  const avgCheck = detail && detail.opsCount > 0 ? Math.round(detail.paidTotal / detail.opsCount) : 0;
+  const staleDays = detail ? daysSince(detail.lastDate) : null;
+
+  // Кнопка «Записать платёж» закрывает диалог и открывает шторку ввода
+  function recordPayment(clientId: string) {
+    closeClient();
+    openAdd({ kind: "income", clientId });
+  }
 
   function handleAddClient() {
     if (!form.name.trim()) {
@@ -83,13 +205,25 @@ export function ClientsView() {
     setAddOpen(false);
   }
 
+  async function copyContact(contact: string) {
+    try {
+      await navigator.clipboard.writeText(contact);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+      toast.success("Контакт скопирован");
+    } catch {
+      toast.error("Не удалось скопировать");
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* Поиск + добавление */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Поиск по имени или контакту"
+            placeholder="Имя, контакт, заметка…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9"
@@ -102,49 +236,141 @@ export function ClientsView() {
         </Button>
       </div>
 
-      {filtered.length === 0 ? (
+      {/* Фильтры и сортировка */}
+      {clients.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Фильтр клиентов">
+            {(
+              [
+                ["all", "Все"],
+                ["debt", "С долгом"],
+                ["stale", `Молчат ${STALE_DAYS}+ дн.`],
+              ] as Array<[FilterKey, string]>
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                aria-pressed={filter === key}
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  filter === key
+                    ? "bg-emerald-600 text-white"
+                    : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+            <SelectTrigger
+              className="ml-auto h-9 w-auto gap-1 text-xs"
+              aria-label="Сортировка клиентов"
+            >
+              <ArrowDownUp className="h-3.5 w-3.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                <SelectItem key={k} value={k}>
+                  {SORT_LABELS[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Сводка */}
+      {clients.length > 0 && (
+        <div className="grid grid-cols-3 divide-x divide-border rounded-xl border bg-muted/40 text-center">
+          <div className="px-2 py-2.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Клиентов</div>
+            <div className="text-sm font-bold tabular-nums">{clients.length}</div>
+          </div>
+          <div className="px-2 py-2.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Всего получено</div>
+            <div className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {fmtNum(totals.paid)}
+            </div>
+          </div>
+          <div className="px-2 py-2.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Ждёт доплаты</div>
+            <div
+              className={cn(
+                "text-sm font-bold tabular-nums",
+                totals.debt > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+              )}
+            >
+              {fmtNum(totals.debt)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Список клиентов */}
+      {clients.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
           Клиентов пока нет. Добавьте первого — или просто записывайте доходы с именем клиента,
           он появится здесь автоматически.
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          Под фильтр ничего не попало. Попробуйте другой фильтр или очистите поиск.
+        </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(({ client, paidTotal, opsCount, lastDate, debt }) => (
-            <Card
-              key={client.id}
-              className="cursor-pointer p-3 transition-colors hover:bg-muted/50"
-              onClick={() => setDetailId(client.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && setDetailId(client.id)}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  {initials(client.name) || <UserRound className="h-4 w-4" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{client.name}</span>
-                    {debt > 0 && (
-                      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                        долг {fmtMoney(debt)}
-                      </Badge>
+          {filtered.map(({ client, paidTotal, opsCount, lastDate, debt }: ClientStats) => {
+            const stale = daysSince(lastDate);
+            return (
+              <Card
+                key={client.id}
+                className="cursor-pointer p-3 transition-colors hover:bg-muted/50"
+                onClick={() => useUi.getState().openClient(client.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && useUi.getState().openClient(client.id)}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                      avatarClass(client.name)
                     )}
+                  >
+                    {initials(client.name) || <UserRound className="h-4 w-4" />}
                   </div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {client.contact || "—"}
-                    {lastDate && ` · был платёж ${fmtDate(lastDate)}`}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="truncate font-medium">{client.name}</span>
+                      {debt > 0 && (
+                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                          долг {fmtMoney(debt)}
+                        </Badge>
+                      )}
+                      {stale !== null && stale >= STALE_DAYS && (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          молчит {stale} дн.
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {client.contact || "—"}
+                      {lastDate && ` · был платёж ${fmtDate(lastDate)}`}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                      {fmtMoney(paidTotal)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {opsCount} плат.{opsCount > 0 && ` · ср. ${fmtNum(Math.round(paidTotal / opsCount))}`}
+                    </div>
                   </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    {fmtMoney(paidTotal)}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">{opsCount} плат.</div>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -192,71 +418,196 @@ export function ClientsView() {
       </Dialog>
 
       {/* Диалог клиента */}
-      <Dialog open={!!detail} onOpenChange={(v) => !v && setDetailId(null)}>
+      <Dialog open={!!detail} onOpenChange={(v) => !v && closeClient()}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           {detail && (
             <>
               <DialogHeader>
-                <DialogTitle>{detail.client.name}</DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                      avatarClass(detail.client.name)
+                    )}
+                    aria-hidden
+                  >
+                    {initials(detail.client.name) || <UserRound className="h-4 w-4" />}
+                  </span>
+                  {detail.client.name}
+                </DialogTitle>
                 <DialogDescription>
-                  {detail.client.contact || "Контакт не указан"}
-                  {detail.client.note ? ` · ${detail.client.note}` : ""}
+                  Клиент с {fmtDateFull(detail.client.createdAt.slice(0, 10))}
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted p-3 text-center">
-                <div>
-                  <div className="text-[11px] text-muted-foreground">Заплатил</div>
+              {/* Контакт: ссылка + копирование */}
+              {detail.client.contact && (
+                <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{detail.client.contact}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label="Скопировать контакт"
+                    onClick={() => copyContact(detail.client.contact!)}
+                  >
+                    {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                  {contactHref(detail.client.contact) && (
+                    <Button variant="outline" size="sm" className="h-8 shrink-0" asChild>
+                      <a
+                        href={contactHref(detail.client.contact)!}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Написать
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Статистика */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-muted p-3 text-center">
+                  <div className="text-[11px] text-muted-foreground">Заплатил всего</div>
                   <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                     {fmtMoney(detail.paidTotal)}
                   </div>
                 </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">Долг</div>
-                  <div className="text-sm font-bold text-amber-600 dark:text-amber-400 tabular-nums">
-                    {fmtMoney(detail.debt)}
-                  </div>
+                <div className="rounded-lg bg-muted p-3 text-center">
+                  <div className="text-[11px] text-muted-foreground">Средний чек</div>
+                  <div className="text-sm font-bold tabular-nums">{fmtMoney(avgCheck)}</div>
                 </div>
-                <div>
+                <div className="rounded-lg bg-muted p-3 text-center">
                   <div className="text-[11px] text-muted-foreground">Платежей</div>
                   <div className="text-sm font-bold tabular-nums">{detail.opsCount}</div>
                 </div>
+                <div className="rounded-lg bg-muted p-3 text-center">
+                  <div className="text-[11px] text-muted-foreground">Долг</div>
+                  <div
+                    className={cn(
+                      "text-sm font-bold tabular-nums",
+                      detail.debt > 0
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {fmtMoney(detail.debt)}
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="cl-edit-contact">Контакт</Label>
-                <Input
-                  id="cl-edit-contact"
-                  defaultValue={detail.client.contact ?? ""}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v !== (detail.client.contact ?? "")) {
-                      updateClient(detail.client.id, { contact: v || undefined });
-                      toast.success("Контакт обновлён");
-                    }
-                  }}
-                />
+              {staleDays !== null && staleDays >= STALE_DAYS && (
+                <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                  Последний платёж был {staleDays} дн. назад — повод напомнить о себе.
+                </div>
+              )}
+
+              {/* Редактирование полей */}
+              <div className="space-y-2 rounded-lg border p-3">
+                <div className="text-xs font-medium text-muted-foreground">Данные клиента</div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="cl-edit-name">Имя</Label>
+                  <Input
+                    id="cl-edit-name"
+                    defaultValue={detail.client.name}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v && v !== detail.client.name) {
+                        updateClient(detail.client.id, { name: v });
+                        toast.success("Имя обновлено");
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="cl-edit-contact">Контакт</Label>
+                  <Input
+                    id="cl-edit-contact"
+                    defaultValue={detail.client.contact ?? ""}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (detail.client.contact ?? "")) {
+                        updateClient(detail.client.id, { contact: v || undefined });
+                        toast.success("Контакт обновлён");
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="cl-edit-note">Заметка</Label>
+                  <Input
+                    id="cl-edit-note"
+                    defaultValue={detail.client.note ?? ""}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (detail.client.note ?? "")) {
+                        updateClient(detail.client.id, { note: v || undefined });
+                        toast.success("Заметка обновлена");
+                      }
+                    }}
+                    placeholder="Например: постоянный, платит по пятницам"
+                  />
+                </div>
               </div>
 
+              {/* Источники клиента */}
+              {detailSources.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>Пришёл через:</span>
+                  {detailSources.map((s) => (
+                    <Badge key={s} variant="secondary" className="text-[10px]">
+                      {s}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* История платежей по месяцам */}
               <div className="space-y-1">
                 <div className="text-sm font-medium">История платежей</div>
-                {detailOps.length === 0 ? (
+                {detailMonthGroups.length === 0 ? (
                   <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
                     Платежей ещё не было
                   </div>
                 ) : (
-                  <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
-                    {detailOps.map((op) => (
-                      <div
-                        key={op.id}
-                        className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2 text-sm"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate">{op.type || "Платёж"}</div>
-                          <div className="text-xs text-muted-foreground">{fmtDate(op.date)}</div>
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {detailMonthGroups.map((g) => (
+                      <div key={g.key}>
+                        <div className="flex items-baseline justify-between px-1 py-1 text-xs">
+                          <span className="font-medium text-muted-foreground">{g.label}</span>
+                          <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                            {fmtMoney(g.total)}
+                          </span>
                         </div>
-                        <div className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                          +{fmtMoney(op.amount)}
+                        <div className="space-y-1">
+                          {g.ops.map((op) => (
+                            <div
+                              key={op.id}
+                              className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2 text-sm"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  {op.type || "Платёж"}
+                                  {op.part === "prepay" && (
+                                    <Badge className="bg-amber-100 px-1.5 py-0 text-[10px] text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                                      предоплата
+                                    </Badge>
+                                  )}
+                                  {op.part === "rest" && (
+                                    <Badge className="bg-sky-100 px-1.5 py-0 text-[10px] text-sky-800 dark:bg-sky-900 dark:text-sky-200">
+                                      остаток
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">{fmtDate(op.date)}</div>
+                              </div>
+                              <div className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                +{fmtMoney(op.amount)}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
@@ -283,7 +634,7 @@ export function ClientsView() {
                       <AlertDialogAction
                         onClick={() => {
                           deleteClient(detail.client.id);
-                          setDetailId(null);
+                          closeClient();
                           toast.success("Клиент удалён");
                         }}
                       >
@@ -294,11 +645,9 @@ export function ClientsView() {
                 </AlertDialog>
                 <Button
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => {
-                    setDetailId(null);
-                    openAdd({ kind: "income", clientId: detail.client.id });
-                  }}
+                  onClick={() => recordPayment(detail.client.id)}
                 >
+                  <HandCoins className="mr-1 h-4 w-4" />
                   Записать платёж
                 </Button>
               </DialogFooter>

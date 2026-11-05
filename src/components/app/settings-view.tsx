@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  ArrowRight,
+  ClipboardCopy,
   CloudUpload,
   Crown,
   Database,
@@ -28,11 +30,13 @@ import {
   Eraser,
   FileUp,
   FlaskConical,
+  Landmark,
   Lock,
   LogIn,
   LogOut,
   Moon,
   RefreshCw,
+  Search,
   Tags,
   Target,
   X,
@@ -43,6 +47,9 @@ import { useUi } from "@/lib/ui-store";
 import { isPro, PRICE, FREE_LIMITS } from "@/lib/limits";
 import { validateKey } from "@/lib/license";
 import { importFromCsv, exportToCsv, downloadFile } from "@/lib/csv";
+import { totalsForYear, totalsForMonth } from "@/lib/analytics";
+import { buildMonthReport, copyText } from "@/lib/report";
+import { fmtNum, MONTHS_NOM } from "@/lib/format";
 import {
   sbGetUser,
   sbPush,
@@ -151,9 +158,19 @@ function ChipEditor({
 
 export function SettingsView() {
   const store = useStore();
-  const { setTab } = useUi();
+  const { setTab, openSearch } = useUi();
   const { theme, setTheme } = useTheme();
   const { openPro } = useUi();
+
+  const now = new Date();
+  const yearTotals = useMemo(
+    () => totalsForYear(store.operations, now.getFullYear()),
+    [store.operations]
+  );
+  const monthTotals = useMemo(
+    () => totalsForMonth(store.operations, now.getFullYear(), now.getMonth() + 1),
+    [store.operations]
+  );
 
   // Pro
   const [keyName, setKeyName] = useState("");
@@ -327,7 +344,88 @@ export function SettingsView() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold">Настройки</h2>
+      <h2 className="text-base font-semibold">Ещё</h2>
+
+      {/* Инструменты */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Инструменты</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <button
+            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
+            onClick={openSearch}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+              <Search className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">Поиск по всем данным</span>
+              <span className="block text-xs text-muted-foreground">
+                Операции, клиенты, суммы — за любой месяц
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+          <button
+            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
+            onClick={async () => {
+              if (monthTotals.count === 0) {
+                const nom = MONTHS_NOM[now.getMonth()];
+                toast.error(`В ${nom}е пока нет операций`);
+                return;
+              }
+              const text = buildMonthReport(store.operations, store.clients, now.getFullYear(), now.getMonth() + 1);
+              const ok = await copyText(text);
+              if (ok) toast.success("Отчёт за месяц скопирован — вставьте куда нужно");
+              else toast.error("Не удалось скопировать отчёт");
+            }}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              <ClipboardCopy className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">Отчёт за текущий месяц</span>
+              <span className="block text-xs text-muted-foreground">
+                Скопировать сводку текстом — бухгалтеру или в заметки
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Налоги (Pro) */}
+      <SectionCard icon={Landmark} title="Налоги · самозанятый" locked={!pro} onLockClick={openPro}>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg bg-muted p-2.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Доход за год</div>
+            <div className="mt-0.5 text-sm font-bold tabular-nums">{fmtNum(yearTotals.income)}</div>
+          </div>
+          <div className="rounded-lg bg-emerald-50 p-2.5 dark:bg-emerald-950/40">
+            <div className="text-[10px] uppercase tracking-wide text-emerald-700/70 dark:text-emerald-400/70">НПД 4%</div>
+            <div className="mt-0.5 text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+              {fmtNum(Math.round(yearTotals.income * 0.04))}
+            </div>
+          </div>
+          <div className="rounded-lg bg-sky-50 p-2.5 dark:bg-sky-950/40">
+            <div className="text-[10px] uppercase tracking-wide text-sky-700/70 dark:text-sky-400/70">НПД 6%</div>
+            <div className="mt-0.5 text-sm font-bold tabular-nums text-sky-700 dark:text-sky-300">
+              {fmtNum(Math.round(yearTotals.income * 0.06))}
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          4% — если платят физлица, 6% — юрлица и ИП. Доход за текущий месяц: {fmtNum(monthTotals.income)} ₽
+          (налог {fmtNum(Math.round(monthTotals.income * 0.04))} / {fmtNum(Math.round(monthTotals.income * 0.06))} ₽).
+          Лимит НПД — 2,4 млн ₽ в год.
+        </p>
+        {yearTotals.income > 2_400_000 && (
+          <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+            Доход превысил лимит НПД — изучите переход на ИП или НДФЛ.
+          </p>
+        )}
+      </SectionCard>
 
       {/* Pro */}
       <Card className={pro ? "border-amber-300 dark:border-amber-800" : ""}>

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { AddOperationSheet } from "@/components/app/add-operation-sheet";
 import { ProDialog } from "@/components/app/pro-dialog";
+import { GlobalSearch } from "@/components/app/global-search";
 import { LedgerView } from "@/components/app/ledger-view";
 import { ClientsView } from "@/components/app/clients-view";
 import { AnalyticsView } from "@/components/app/analytics-view";
@@ -52,11 +53,24 @@ export default function Home() {
   const mounted = useMounted();
   const tab = useUi((s) => s.tab);
   const openAdd = useUi((s) => s.openAdd);
+  const openSearch = useUi((s) => s.openSearch);
   const license = useStore((s) => s.license);
   const pro = isPro(license);
 
   useEffect(() => {
     tgApi();
+  }, []);
+
+  // Ctrl/Cmd+K открывает глобальный поиск
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        useUi.getState().openSearch();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   if (!mounted) {
@@ -84,15 +98,26 @@ export default function Home() {
               </div>
             </div>
           </div>
-          {!pro && (
-            <Badge
+          <div className="flex items-center gap-2">
+            {!pro && (
+              <Badge
+                variant="outline"
+                className="cursor-pointer border-amber-400 text-amber-600 dark:text-amber-400"
+                onClick={() => useUi.getState().openPro()}
+              >
+                Pro
+              </Badge>
+            )}
+            <Button
               variant="outline"
-              className="cursor-pointer border-amber-400 text-amber-600 dark:text-amber-400"
-              onClick={() => useUi.getState().openPro()}
+              size="icon"
+              className="h-9 w-9 rounded-full"
+              aria-label="Поиск по операциям и клиентам"
+              onClick={openSearch}
             >
-              Pro
-            </Badge>
-          )}
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -116,6 +141,7 @@ export default function Home() {
       <BottomNav />
       <AddOperationSheet />
       <ProDialog />
+      <GlobalSearch />
       <ServiceWorkerRegister />
     </div>
   );
