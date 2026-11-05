@@ -48,6 +48,79 @@ export function monthlySeries(ops: Operation[], year: number): Array<{ income: n
   return series;
 }
 
+/** Помесячная динамика года: доход, расход, прибыль, накопленная средняя */
+export interface MonthDynamics {
+  month: number; // 0..11
+  income: number;
+  expense: number;
+  profit: number;
+  active: boolean; // в месяце есть операции
+  avgProfit: number; // накопленная средняя прибыль по активным месяцам
+}
+
+export function monthlyDynamics(ops: Operation[], year: number): MonthDynamics[] {
+  const series = monthlySeries(ops, year);
+  let sum = 0;
+  let activeCount = 0;
+  return series.map((s, month) => {
+    const active = s.income > 0 || s.expense > 0;
+    if (active) activeCount++;
+    sum += s.income - s.expense;
+    return {
+      month,
+      income: s.income,
+      expense: s.expense,
+      profit: s.income - s.expense,
+      active,
+      avgProfit: activeCount > 0 ? sum / activeCount : 0,
+    };
+  });
+}
+
+export interface TypeSeries {
+  /** Типы услуг по убыванию дохода за год («Остальные» — последним) */
+  types: string[];
+  /** 12 строк: { month, [тип]: сумма дохода } */
+  rows: Array<Record<string, number> & { month: number }>;
+}
+
+/** Доходы по типам услуг помесячно: топ-N типов, прочие свёрнуты в «Остальные» */
+export function monthlyTypeSeries(ops: Operation[], year: number, topN = 4): TypeSeries {
+  const yearTotals = new Map<string, number>();
+  const monthly = new Map<string, number[]>(); // type -> [12]
+  for (const op of ops) {
+    if (op.kind !== "income" || !op.date.startsWith(String(year))) continue;
+    const m = Number(op.date.slice(5, 7)) - 1;
+    if (m < 0 || m > 11) continue;
+    const key = op.type || "Без категории";
+    let arr = monthly.get(key);
+    if (!arr) {
+      arr = Array.from({ length: 12 }, () => 0);
+      monthly.set(key, arr);
+    }
+    arr[m] += op.amount;
+    yearTotals.set(key, (yearTotals.get(key) ?? 0) + op.amount);
+  }
+
+  const sorted = Array.from(yearTotals.entries()).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, topN).map(([k]) => k);
+  const rest = sorted.slice(topN);
+  const types = rest.length > 0 ? [...top, "Остальные"] : top;
+
+  const rows = Array.from({ length: 12 }, (_, m) => {
+    const row: Record<string, number> & { month: number } = { month: m };
+    for (const t of top) row[t] = monthly.get(t)?.[m] ?? 0;
+    if (rest.length > 0) {
+      let sum = 0;
+      for (const [t] of rest) sum += monthly.get(t)?.[m] ?? 0;
+      row["Остальные"] = sum;
+    }
+    return row;
+  });
+
+  return { types, rows };
+}
+
 export interface Ranked {
   key: string;
   income: number;
