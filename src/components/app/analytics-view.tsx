@@ -8,11 +8,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ComposedChart,
   Line,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -186,27 +183,16 @@ function IeTip({ active, payload, label }: { active?: boolean; payload?: TipEntr
   );
 }
 
-function DonutTip({ active, payload }: { active?: boolean; payload?: TipEntry[] }) {
-  if (!active || !payload?.length) return null;
-  const e = payload[0];
-  const fill = (e.payload?.fill as string) ?? GRAY;
-  return (
-    <TipBox>
-      <TipRow color={fill} label={String(e.name ?? "")} value={fmtMoney(Number(e.value ?? 0))} strong />
-    </TipBox>
-  );
-}
-
 /* ────────────────────────── переключатель режима ────────────────────────── */
 
-function Segmented({
+function Segmented<T extends string>({
   value,
   onChange,
   options,
 }: {
-  value: "abs" | "share";
-  onChange: (v: "abs" | "share") => void;
-  options: Array<{ value: "abs" | "share"; label: string }>;
+  value: T;
+  onChange: (v: T) => void;
+  options: Array<{ value: T; label: string }>;
 }) {
   return (
     <div className="flex shrink-0 rounded-lg bg-muted p-0.5">
@@ -248,7 +234,7 @@ function HeroDynamics({
   inPlus: number;
   activeCount: number;
   spark: Array<{ name: string; profit: number; avg: number }>;
-  badge: { month: number; pct: number } | null;
+  badge: { month: number; label: string; up: boolean } | null;
 }) {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-[linear-gradient(130deg,#047857_0%,#0d9488_52%,#0369a1_100%)] p-4 text-white shadow-xl shadow-emerald-900/15">
@@ -270,16 +256,15 @@ function HeroDynamics({
           <span
             className={cn(
               "mt-1 flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold backdrop-blur-sm",
-              badge.pct < 0 && "text-rose-200"
+              !badge.up && "text-rose-200"
             )}
           >
-            {badge.pct >= 0 ? (
+            {badge.up ? (
               <TrendingUp className="h-3.5 w-3.5" />
             ) : (
               <TrendingDown className="h-3.5 w-3.5" />
             )}
-            {MONTHS_SHORT[badge.month]} {badge.pct > 0 ? "+" : ""}
-            {badge.pct}%
+            {MONTHS_SHORT[badge.month]} {badge.label}
           </span>
         )}
       </div>
@@ -370,21 +355,26 @@ function RankBars({
   items,
   metric,
   total,
+  headerRight,
 }: {
   title: string;
   subtitle?: string;
   items: Array<{ key: string; income: number; expense: number; count: number }>;
   metric: "income" | "expense";
   total: number;
+  headerRight?: ReactNode;
 }) {
   const visible = items.filter((i) => i[metric] > 0).slice(0, 6);
   if (visible.length === 0) return null;
   const max = Math.max(...visible.map((i) => i[metric]));
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">{title}</CardTitle>
-        {subtitle && <p className="text-[11px] font-normal text-muted-foreground">{subtitle}</p>}
+      <CardHeader className={cn("pb-2", headerRight && "flex-row items-start justify-between gap-2")}>
+        <div className="min-w-0">
+          <CardTitle className="text-sm">{title}</CardTitle>
+          {subtitle && <p className="text-[11px] font-normal text-muted-foreground">{subtitle}</p>}
+        </div>
+        {headerRight}
       </CardHeader>
       <CardContent className="space-y-3">
         {visible.map((item, idx) => {
@@ -531,8 +521,20 @@ export function AnalyticsView() {
     return Array.from(set).sort((a, b) => b - a);
   })();
 
-  const [year, setYear] = useState<number>(years[0] ?? now.getFullYear());
+  /* По умолчанию — текущий год; если в нём нет операций, открываем год последних данных */
+  const defaultYear = (() => {
+    if (operations.length === 0) return now.getFullYear();
+    const hasCur = operations.some((o) => o.date.startsWith(String(now.getFullYear())));
+    if (hasCur) return now.getFullYear();
+    let max = "";
+    for (const op of operations) if (op.date > max) max = op.date;
+    return Number(max.slice(0, 4));
+  })();
+
+  const [year, setYear] = useState<number>(defaultYear);
   const [mode, setMode] = useState<"abs" | "share">("abs");
+  /* «Откуда деньги»: разбивка дохода по источникам или услугам */
+  const [moneyFrom, setMoneyFrom] = useState<"sources" | "types">("sources");
 
   const totals = totalsForYear(operations, year);
 
@@ -559,15 +561,17 @@ export function AnalyticsView() {
     for (let i = lastActive - 1; i >= 0; i--) if (dynamics[i].active) return dynamics[i];
     return null;
   }, [dynamics, lastActive]);
-  const badge =
-    lastActive >= 0 && prevActive && prevActive.profit > 0
-      ? {
-          month: lastActive,
-          pct: Math.round(
-            ((dynamics[lastActive].profit - prevActive.profit) / prevActive.profit) * 100
-          ),
-        }
-      : null;
+  const badge = (() => {
+    if (lastActive < 0 || !prevActive || prevActive.profit <= 0) return null;
+    const cur = dynamics[lastActive].profit;
+    const up = cur >= prevActive.profit;
+    const pct = Math.round(((cur - prevActive.profit) / prevActive.profit) * 100);
+    const label =
+      Math.abs(pct) >= 1000
+        ? `×${Math.max(2, Math.round(cur / prevActive.profit))}`
+        : `${pct >= 0 ? "+" : "−"}${Math.abs(pct)}%`;
+    return { month: lastActive, label, up };
+  })();
 
   const spark = useMemo(
     () =>
@@ -629,23 +633,22 @@ export function AnalyticsView() {
     [dynamics]
   );
 
-  /* донат по источникам */
-  const donutData = useMemo(() => {
-    const ranked = rankBy(operations, "source", "income").filter((i) => i.income > 0);
-    const items = ranked.map((i) => ({
-      key: i.key === "Без категории" ? "Без источника" : i.key,
-      value: i.income,
-      count: i.count,
-    }));
-    const top = items.slice(0, 5);
-    const rest = items.slice(5);
-    const restVal = rest.reduce((s, i) => s + i.value, 0);
-    if (restVal > 0) top.push({ key: "Остальные", value: restVal, count: rest.length });
-    return top;
-  }, [operations]);
-  const donutTotal = donutData.reduce((s, i) => s + i.value, 0);
+  /* донат по источникам — заменён карточкой «Откуда деньги» */
+  const opsInYear = useMemo(
+    () => operations.filter((o) => o.date.startsWith(String(year))),
+    [operations, year]
+  );
+  const sourceRanked = useMemo(
+    () =>
+      rankBy(opsInYear, "source", "income").map((i) =>
+        i.key === "Без категории" ? { ...i, key: "Без источника" } : i
+      ),
+    [opsInYear]
+  );
+  const typeRanked = useMemo(() => rankBy(opsInYear, "type", "income"), [opsInYear]);
+  const moneyFromItems = moneyFrom === "sources" ? sourceRanked : typeRanked;
 
-  const expenseTypes = useMemo(() => rankBy(operations, "type", "expense"), [operations]);
+  const expenseTypes = useMemo(() => rankBy(opsInYear, "type", "expense"), [opsInYear]);
 
   const empty = operations.length === 0;
 
@@ -687,6 +690,25 @@ export function AnalyticsView() {
             activeCount={activeMonths.length}
             spark={spark}
             badge={badge}
+          />
+
+          {/* Откуда деньги: рейтинги источников и услуг */}
+          <RankBars
+            title="Откуда деньги"
+            subtitle={`доля от дохода за ${year} год`}
+            items={moneyFromItems}
+            metric="income"
+            total={totals.income}
+            headerRight={
+              <Segmented
+                value={moneyFrom}
+                onChange={setMoneyFrom}
+                options={[
+                  { value: "sources", label: "Источники" },
+                  { value: "types", label: "Услуги" },
+                ]}
+              />
+            }
           />
 
           {/* Структура доходов по типам услуг, помесячно */}
@@ -829,65 +851,6 @@ export function AnalyticsView() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Источники клиентов: донат */}
-          {donutData.length > 0 && (
-            <Card>
-              <CardHeader className="pb-0">
-                <CardTitle className="text-sm">Источники клиентов</CardTitle>
-                <p className="text-[11px] font-normal text-muted-foreground">откуда приходят деньги</p>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <div className="relative h-44 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Tooltip content={<DonutTip />} />
-                      <Pie
-                        data={donutData}
-                        dataKey="value"
-                        nameKey="key"
-                        innerRadius="60%"
-                        outerRadius="88%"
-                        paddingAngle={2}
-                        cornerRadius={5}
-                        stroke="none"
-                        startAngle={90}
-                        endAngle={-270}
-                      >
-                        {donutData.map((d, i) => (
-                          <Cell
-                            key={d.key}
-                            fill={d.key === "Остальные" ? GRAY : PALETTE[i % PALETTE.length]}
-                          />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Доход за год
-                    </span>
-                    <span className="text-base font-extrabold tabular-nums">{fmtNum(donutTotal)} ₽</span>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-1.5">
-                  {donutData.map((d, i) => (
-                    <div key={d.key} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ background: d.key === "Остальные" ? GRAY : PALETTE[i % PALETTE.length] }}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{d.key}</span>
-                      <span className="shrink-0 font-semibold tabular-nums">{fmtMoney(d.value)}</span>
-                      <span className="w-9 shrink-0 text-right text-[10px] text-muted-foreground tabular-nums">
-                        {pctOf(d.value, donutTotal)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Куда уходят деньги */}
           <RankBars

@@ -49,6 +49,8 @@ interface AppState {
   setSupabaseConfig: (patch: Partial<SupabaseConfig>) => void;
 
   importSnapshot: (snap: SyncSnapshot) => void;
+  /** Импорт из CSV: перепривязывает клиентов по имени и добавляет их категории */
+  applyImport: (ops: Operation[], clients: Client[]) => { ops: number; clients: number };
   loadDemo: () => void;
   clearAll: () => void;
 }
@@ -161,6 +163,51 @@ export const useStore = create<AppState>()(
           categories: snap.categories ?? DEFAULT_CATEGORIES,
           settings: snap.settings ?? DEFAULT_SETTINGS,
         }),
+
+      applyImport: (ops, clients) => {
+        const state = get();
+        // Клиенты из файла: совпавшие по имени переиспользуют существующую запись,
+        // новые добавляются как есть; операции перепривязываются на итоговые id
+        const byName = new Map(state.clients.map((c) => [c.name.toLowerCase(), c.id] as const));
+        const idMap = new Map<string, string>();
+        const addedClients: Client[] = [];
+        for (const c of clients) {
+          const key = c.name.toLowerCase();
+          const existingId = byName.get(key);
+          if (existingId) {
+            idMap.set(c.id, existingId);
+          } else {
+            byName.set(key, c.id);
+            idMap.set(c.id, c.id);
+            addedClients.push(c);
+          }
+        }
+        const remapped = ops.map((o) =>
+          o.clientId ? { ...o, clientId: idMap.get(o.clientId) ?? undefined } : o
+        );
+        // Категории из таблицы появляются в приложении — «ваша таблица, но живая»
+        const incomeTypes = new Set(state.categories.incomeTypes);
+        const expenseTypes = new Set(state.categories.expenseTypes);
+        const sources = new Set(state.categories.sources);
+        for (const o of remapped) {
+          if (o.kind === "income") {
+            if (o.type) incomeTypes.add(o.type);
+            if (o.source) sources.add(o.source);
+          } else if (o.type) {
+            expenseTypes.add(o.type);
+          }
+        }
+        set({
+          clients: [...addedClients, ...state.clients],
+          operations: [...remapped, ...state.operations],
+          categories: {
+            incomeTypes: Array.from(incomeTypes),
+            expenseTypes: Array.from(expenseTypes),
+            sources: Array.from(sources),
+          },
+        });
+        return { ops: remapped.length, clients: addedClients.length };
+      },
 
       loadDemo: () =>
         set({ operations: demoOperations(), clients: demoClients() }),

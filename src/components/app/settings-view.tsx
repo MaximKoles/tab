@@ -30,7 +30,6 @@ import {
   Eraser,
   FileUp,
   FlaskConical,
-  Landmark,
   Lock,
   LogIn,
   LogOut,
@@ -47,7 +46,7 @@ import { useUi } from "@/lib/ui-store";
 import { isPro, PRICE, FREE_LIMITS } from "@/lib/limits";
 import { validateKey } from "@/lib/license";
 import { importFromCsv, exportToCsv, downloadFile } from "@/lib/csv";
-import { totalsForYear, totalsForMonth } from "@/lib/analytics";
+import { totalsForMonth } from "@/lib/analytics";
 import { buildMonthReport, copyText } from "@/lib/report";
 import { fmtNum, MONTHS_NOM } from "@/lib/format";
 import {
@@ -158,15 +157,11 @@ function ChipEditor({
 
 export function SettingsView() {
   const store = useStore();
-  const { setTab, openSearch } = useUi();
+  const { setTab, openSearch, navigateLedger } = useUi();
   const { theme, setTheme } = useTheme();
   const { openPro } = useUi();
 
   const now = new Date();
-  const yearTotals = useMemo(
-    () => totalsForYear(store.operations, now.getFullYear()),
-    [store.operations]
-  );
   const monthTotals = useMemo(
     () => totalsForMonth(store.operations, now.getFullYear(), now.getMonth() + 1),
     [store.operations]
@@ -182,7 +177,6 @@ export function SettingsView() {
   const csvInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const [importYear, setImportYear] = useState(String(new Date().getFullYear()));
-  const pendingCsv = useRef<string | null>(null);
 
   // Sync
   const [sbUrl, setSbUrl] = useState(store.supabase.url);
@@ -225,24 +219,16 @@ export function SettingsView() {
   function handleCsvFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
-      pendingCsv.current = String(reader.result ?? "");
-      const res = importFromCsv(pendingCsv.current, Number(importYear));
+      const res = importFromCsv(String(reader.result ?? ""), Number(importYear));
       if (res.operations.length === 0) {
         toast.error("Не нашёл операций в файле. Проверьте формат (Дата, Сумма, …).");
         return;
       }
-      // Применяем импорт
-      for (const c of res.clients) {
-        if (!store.clients.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) {
-          store.addClient({ name: c.name, contact: c.contact });
-        }
-      }
-      for (const op of res.operations) {
-        store.addOperation(op);
-      }
-      toast.success(
-        `Импортировано ${res.operations.length} операций${res.clients.length ? `, клиентов: ${res.clients.length}` : ""}`
-      );
+      const { ops, clients } = store.applyImport(res.operations, res.clients);
+      let max = "";
+      for (const o of res.operations) if (o.date > max) max = o.date;
+      if (max) navigateLedger(Number(max.slice(0, 4)), Number(max.slice(5, 7)));
+      toast.success(`Импортировано ${ops} операций${clients ? `, новых клиентов: ${clients}` : ""}`);
       setTab("ledger");
     };
     reader.readAsText(file, "utf-8");
@@ -394,38 +380,6 @@ export function SettingsView() {
           </button>
         </CardContent>
       </Card>
-
-      {/* Налоги (Pro) */}
-      <SectionCard icon={Landmark} title="Налоги · самозанятый" locked={!pro} onLockClick={openPro}>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-lg bg-muted p-2.5">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Доход за год</div>
-            <div className="mt-0.5 text-sm font-bold tabular-nums">{fmtNum(yearTotals.income)}</div>
-          </div>
-          <div className="rounded-lg bg-emerald-50 p-2.5 dark:bg-emerald-950/40">
-            <div className="text-[10px] uppercase tracking-wide text-emerald-700/70 dark:text-emerald-400/70">НПД 4%</div>
-            <div className="mt-0.5 text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
-              {fmtNum(Math.round(yearTotals.income * 0.04))}
-            </div>
-          </div>
-          <div className="rounded-lg bg-sky-50 p-2.5 dark:bg-sky-950/40">
-            <div className="text-[10px] uppercase tracking-wide text-sky-700/70 dark:text-sky-400/70">НПД 6%</div>
-            <div className="mt-0.5 text-sm font-bold tabular-nums text-sky-700 dark:text-sky-300">
-              {fmtNum(Math.round(yearTotals.income * 0.06))}
-            </div>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          4% — если платят физлица, 6% — юрлица и ИП. Доход за текущий месяц: {fmtNum(monthTotals.income)} ₽
-          (налог {fmtNum(Math.round(monthTotals.income * 0.04))} / {fmtNum(Math.round(monthTotals.income * 0.06))} ₽).
-          Лимит НПД — 2,4 млн ₽ в год.
-        </p>
-        {yearTotals.income > 2_400_000 && (
-          <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
-            Доход превысил лимит НПД — изучите переход на ИП или НДФЛ.
-          </p>
-        )}
-      </SectionCard>
 
       {/* Pro */}
       <Card className={pro ? "border-amber-300 dark:border-amber-800" : ""}>

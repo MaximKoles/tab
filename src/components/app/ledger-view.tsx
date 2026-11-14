@@ -1,17 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, HandCoins, Lock, Trophy, Wallet } from "lucide-react";
+import { ChevronLeft, ChevronRight, HandCoins, Lock, TrendingDown, TrendingUp, Trophy, Wallet, Zap } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
-import { fmtMoney, fmtNum, fmtDateFull, weekdayOf, MONTHS_NOM, MONTHS_SHORT } from "@/lib/format";
+import { fmtMoney, fmtNum, fmtDateFull, weekdayOf, MONTHS_NOM, MONTHS_SHORT, ruPlural } from "@/lib/format";
 import { totalsForMonth, openDeals } from "@/lib/analytics";
 import { isPro } from "@/lib/limits";
 import type { Operation } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** Дательный падеж для «к январю» */
+const MONTHS_DAT = [
+  "январю", "февралю", "марту", "апрелю", "маю", "июню",
+  "июлю", "августу", "сентябрю", "октябрю", "ноябрю", "декабрю",
+];
 
 function monthLabel(y: number, m: number) {
   const nom = MONTHS_NOM[m - 1];
@@ -98,6 +104,16 @@ export function LedgerView() {
 
   const now = new Date();
   const [{ y, m }, setMonth] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 });
+  const ledgerNav = useUi((s) => s.ledgerNav);
+  const clearLedgerNav = useUi((s) => s.clearLedgerNav);
+
+  // После импорта таблицы открываем месяц последних данных
+  useEffect(() => {
+    if (ledgerNav) {
+      setMonth(ledgerNav);
+      clearLedgerNav();
+    }
+  }, [ledgerNav, clearLedgerNav]);
 
   const totals = useMemo(() => totalsForMonth(operations, y, m), [operations, y, m]);
   const deals = useMemo(() => openDeals(operations), [operations]);
@@ -127,6 +143,50 @@ export function LedgerView() {
     settings.monthlyGoal > 0 ? Math.min(100, Math.round((totals.income / settings.monthlyGoal) * 100)) : 0;
   const monthDeals = deals.filter((d) => d.lastDate.startsWith(`${y}-${String(m).padStart(2, "0")}`));
   const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
+
+  /* Тренд: доход выбранного месяца против предыдущего */
+  const prevMonth = useMemo(() => shiftMonth(y, m, -1), [y, m]);
+  const prevIncome = useMemo(
+    () => totalsForMonth(operations, prevMonth.y, prevMonth.m).income,
+    [operations, prevMonth]
+  );
+  const trend = useMemo(() => {
+    const cur = totals.income;
+    if (prevIncome > 0) {
+      const pct = Math.round(((cur - prevIncome) / prevIncome) * 100);
+      if (pct >= 1000) {
+        const times = Math.max(2, Math.round(cur / prevIncome));
+        const pl = ruPlural(times, ["раз", "раза", "раз"]);
+        return { up: true, text: `в ${times} ${pl} больше ${MONTHS_DAT[prevMonth.m - 1]}` };
+      }
+      if (pct > 0) return { up: true, text: `+${pct}% к ${MONTHS_DAT[prevMonth.m - 1]}` };
+      if (pct < 0) return { up: false, text: `−${Math.abs(pct)}% к ${MONTHS_DAT[prevMonth.m - 1]}` };
+      return null; // ровно столько же — тренд не о чем сообщать
+    }
+    if (cur > 0) return { up: true, text: `${MONTHS_NOM[prevMonth.m - 1]} был без дохода` };
+    return null;
+  }, [totals.income, prevIncome, prevMonth]);
+
+  /* Последний доход — для быстрого повтора */
+  const lastIncome = useMemo(() => {
+    let best: Operation | null = null;
+    for (const op of operations) {
+      if (op.kind !== "income") continue;
+      if (!best || (op.date + op.createdAt).localeCompare(best.date + best.createdAt) > 0) best = op;
+    }
+    return best;
+  }, [operations]);
+  const openRepeat = () => {
+    if (!lastIncome) return;
+    openAdd({
+      kind: "income",
+      clientId: lastIncome.clientId,
+      amount: lastIncome.amount,
+      type: lastIncome.type,
+      source: lastIncome.source,
+      part: "single",
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -172,6 +232,17 @@ export function LedgerView() {
           <div className="text-3xl font-extrabold tracking-tight">
             {fmtNum(totals.profit)} <span className="text-lg font-semibold text-white/90">₽</span>
           </div>
+          {trend && (
+            <div
+              className={cn(
+                "mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                trend.up ? "bg-emerald-400/20 text-emerald-100" : "bg-rose-400/20 text-rose-100"
+              )}
+            >
+              {trend.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+              {trend.text}
+            </div>
+          )}
         </div>
 
         <div className="relative mt-3 grid grid-cols-3 divide-x divide-white/15 rounded-xl bg-white/10 py-2 backdrop-blur-sm">
@@ -218,6 +289,25 @@ export function LedgerView() {
           })}
         </div>
       </div>
+
+      {/* ─── Быстрый повтор последнего дохода ─── */}
+      {lastIncome && (
+        <button
+          onClick={openRepeat}
+          className="flex w-full items-center gap-2.5 rounded-xl border border-dashed px-3 py-2.5 text-left transition-colors hover:bg-muted/60"
+        >
+          <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+          <span className="min-w-0 flex-1 truncate text-sm">
+            <span className="font-semibold">Повторить доход</span>
+            <span className="ml-1.5 text-muted-foreground">
+              {[lastIncome.type, lastIncome.clientName].filter(Boolean).join(" · ")}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
+            +{fmtMoney(lastIncome.amount)}
+          </span>
+        </button>
+      )}
 
       {/* ─── Открытые доплаты ─── */}
       {monthDeals.length > 0 && (

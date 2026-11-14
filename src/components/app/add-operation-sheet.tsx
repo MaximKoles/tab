@@ -102,6 +102,9 @@ export function AddOperationSheet() {
         part: p.part ?? "single",
         clientName,
         dealId: p.dealId ?? "",
+        amount: p.amount !== undefined ? String(p.amount) : base.amount,
+        type: p.type ?? base.type,
+        source: p.source ?? base.source,
       });
     }
   }, [addSheet.open, addSheet.prefill, editing, clients, operations]);

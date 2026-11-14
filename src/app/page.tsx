@@ -8,6 +8,7 @@ import { BottomNav } from "@/components/app/bottom-nav";
 import { AddOperationSheet } from "@/components/app/add-operation-sheet";
 import { ProDialog } from "@/components/app/pro-dialog";
 import { GlobalSearch } from "@/components/app/global-search";
+import { WelcomeDialog } from "@/components/app/welcome-dialog";
 import { LedgerView } from "@/components/app/ledger-view";
 import { ClientsView } from "@/components/app/clients-view";
 import { AnalyticsView } from "@/components/app/analytics-view";
@@ -142,6 +143,7 @@ export default function Home() {
       <AddOperationSheet />
       <ProDialog />
       <GlobalSearch />
+      <WelcomeDialog />
       <ServiceWorkerRegister />
     </div>
   );

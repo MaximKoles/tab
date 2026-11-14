@@ -10,6 +10,10 @@ export interface AddPrefill {
   clientId?: string;
   dealId?: string;
   part?: PayPart;
+  /** Повтор прошлой операции: сумма, услуга, источник */
+  amount?: number;
+  type?: string;
+  source?: string;
 }
 
 interface AddSheetState {
@@ -32,6 +36,10 @@ interface UiState {
   clientDetailId: string | null;
   openClient: (id: string) => void;
   closeClient: () => void;
+  /** Куда перейти на вкладке «Учёт» после импорта (месяц последних данных) */
+  ledgerNav: { y: number; m: number } | null;
+  navigateLedger: (y: number, m: number) => void;
+  clearLedgerNav: () => void;
   addSheet: AddSheetState;
   openAdd: (prefill?: AddPrefill) => void;
   openEdit: (opId: string) => void;
@@ -50,6 +58,9 @@ export const useUi = create<UiState>((set) => ({
   clientDetailId: null,
   openClient: (clientDetailId) => set({ clientDetailId }),
   closeClient: () => set({ clientDetailId: null }),
+  ledgerNav: null,
+  navigateLedger: (y, m) => set({ ledgerNav: { y, m } }),
+  clearLedgerNav: () => set({ ledgerNav: null }),
   addSheet: { open: false, editId: null, prefill: {} },
   openAdd: (prefill = {}) => set({ addSheet: { open: true, editId: null, prefill } }),
   openEdit: (opId) => set({ addSheet: { open: true, editId: opId, prefill: {} } }),
