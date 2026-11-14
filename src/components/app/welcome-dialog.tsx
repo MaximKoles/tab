@@ -97,10 +97,10 @@ export function WelcomeDialog() {
         {step === "choose" ? (
           <>
             <DialogHeader className="items-center text-center sm:text-center">
-              <span className="mx-auto mb-1 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 shadow-lg shadow-emerald-500/25">
-                <Wallet className="h-7 w-7 text-white" />
+              <span className="mx-auto mb-1 flex h-14 w-14 items-center justify-center rounded-[20px] bg-primary shadow-soft">
+                <Wallet className="h-7 w-7 text-primary-foreground" />
               </span>
-              <DialogTitle className="text-xl">Гонорар</DialogTitle>
+              <DialogTitle className="text-2xl">Гонорар</DialogTitle>
               <DialogDescription className="text-center">
                 Учёт доходов фрилансера — вместо таблицы, но по её привычной логике
               </DialogDescription>
@@ -109,7 +109,7 @@ export function WelcomeDialog() {
             <ul className="space-y-1.5 py-1">
               {POINTS.map((p) => (
                 <li key={p} className="flex items-start gap-2 text-sm">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-positive" />
                   <span className="text-muted-foreground">{p}</span>
                 </li>
               ))}
@@ -128,7 +128,7 @@ export function WelcomeDialog() {
             />
 
             <div className="flex flex-col gap-2 pt-1">
-              <Button onClick={() => fileRef.current?.click()} className="h-11 text-base font-semibold">
+              <Button onClick={() => fileRef.current?.click()} className="h-12 rounded-full text-base font-semibold">
                 <FileUp className="h-4 w-4" />
                 Перенести мою таблицу
               </Button>
@@ -136,11 +136,21 @@ export function WelcomeDialog() {
                 Выгрузите таблицу в CSV (Файл → Скачать → CSV в Google Sheets) — колонки
                 «Дата, Сумма, Тип, Имя, Источник» распознаются сами
               </p>
-              <Button variant="outline" className="h-10" onClick={() => { loadDemo(); done(); }}>
+              <Button
+                variant="outline"
+                className="h-11 rounded-full"
+                onClick={() => {
+                  loadDemo();
+                  // демо-данные могут быть не в текущем месяце — открываем месяц последних данных
+                  const nav = latestMonth(useStore.getState().operations);
+                  if (nav) navigateLedger(nav.y, nav.m);
+                  done();
+                }}
+              >
                 <FlaskConical className="h-4 w-4" />
                 Посмотреть на демо-данных
               </Button>
-              <Button variant="ghost" className="h-9 text-muted-foreground" onClick={done}>
+              <Button variant="ghost" className="h-10 rounded-full text-muted-foreground" onClick={done}>
                 <PencilLine className="h-4 w-4" />
                 Начать с чистого листа
               </Button>
@@ -150,7 +160,7 @@ export function WelcomeDialog() {
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <FileSpreadsheet className="h-5 w-5 text-positive" />
                 Таблица прочитана
               </DialogTitle>
               <DialogDescription>
@@ -159,12 +169,12 @@ export function WelcomeDialog() {
             </DialogHeader>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-muted p-3 text-center">
-                <div className="text-2xl font-extrabold tabular-nums">{preview?.operations.length ?? 0}</div>
+              <div className="rounded-[18px] bg-muted p-3 text-center">
+                <div className="text-2xl font-bold tabular-nums">{preview?.operations.length ?? 0}</div>
                 <div className="text-[11px] text-muted-foreground">операций</div>
               </div>
-              <div className="rounded-xl bg-muted p-3 text-center">
-                <div className="text-2xl font-extrabold tabular-nums">{preview?.clients.length ?? 0}</div>
+              <div className="rounded-[18px] bg-muted p-3 text-center">
+                <div className="text-2xl font-bold tabular-nums">{preview?.clients.length ?? 0}</div>
                 <div className="text-[11px] text-muted-foreground">клиентов</div>
               </div>
             </div>
@@ -194,12 +204,12 @@ export function WelcomeDialog() {
             </div>
 
             <div className="flex flex-col gap-2 pt-1">
-              <Button onClick={confirmImport} className="h-11 text-base font-semibold">
+              <Button onClick={confirmImport} className="h-12 rounded-full text-base font-semibold">
                 Перенести в приложение
               </Button>
               <Button
                 variant="outline"
-                className="h-9"
+                className="h-10 rounded-full"
                 onClick={() => {
                   setCsv(null);
                   setStep("choose");

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Area,
@@ -15,30 +14,31 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BarChart3, Crown, Lock, Sparkles, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { BarChart3, Crown, Lock, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
 import { monthlyDynamics, monthlyTypeSeries, rankBy, totalsForYear } from "@/lib/analytics";
-import { fmtMoney, fmtNum, MONTHS_NOM, MONTHS_SHORT } from "@/lib/format";
+import { fmtMoney, fmtNum, MONTHS_SHORT } from "@/lib/format";
 import { isPro } from "@/lib/limits";
 import { cn } from "@/lib/utils";
 
 /* ────────────────────────── палитра и утилиты ────────────────────────── */
 
-/** Яркая палитра для серий диаграмм */
+/** Тёплая сдержанная палитра серий */
 const PALETTE = [
-  "#10b981", // emerald
-  "#8b5cf6", // violet
-  "#f59e0b", // amber
-  "#0ea5e9", // sky
-  "#f43f5e", // rose
-  "#14b8a6", // teal
-  "#d946ef", // fuchsia
-  "#84cc16", // lime
+  "#1c1b17", // чернила
+  "#bf5b33", // терракота
+  "#5e7d5a", // шалфей
+  "#d9b93b", // тёмный лимон
+  "#5d5876", // приглушённый фиолетовый
+  "#4e6572", // сине-серый
+  "#8c8271", // тёплый серый
+  "#a39d8e", // светло-серый
 ];
-const GRAY = "#94a3b8";
-const EMERALD = "#10b981";
-const ROSE = "#f43f5e";
+const GRAY = "#a39d8e";
+const POSITIVE = "#1f7a4d";
+const CAUTION = "#bf5b33";
+const INK = "#1c1b17";
 
 const pctOf = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
 
@@ -68,7 +68,7 @@ interface TipEntry {
 
 function TipBox({ children }: { children: ReactNode }) {
   return (
-    <div className="min-w-[140px] rounded-xl border border-border/50 bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur-md">
+    <div className="min-w-[140px] rounded-2xl border border-border/60 bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur-md">
       {children}
     </div>
   );
@@ -113,8 +113,8 @@ function HeroTip({
   return (
     <TipBox>
       <div className="mb-1 text-[11px] font-semibold capitalize">{label}</div>
-      {profit !== undefined && <TipRow color="#ffffff" label="Прибыль" value={fmtMoney(profit)} strong />}
-      {avg !== undefined && <TipRow label="Средняя" value={fmtMoney(Math.round(avg))} />}
+      {profit !== undefined && <TipRow color={INK} label="Прибыль" value={fmtMoney(profit)} strong />}
+      {avg !== undefined && <TipRow color={GRAY} label="Средняя" value={fmtMoney(Math.round(avg))} />}
     </TipBox>
   );
 }
@@ -169,14 +169,14 @@ function IeTip({ active, payload, label }: { active?: boolean; payload?: TipEntr
   return (
     <TipBox>
       <div className="mb-1 text-[11px] font-semibold capitalize">{label}</div>
-      <TipRow color={EMERALD} label="Доход" value={fmtMoney(income)} />
-      <TipRow color={ROSE} label="Расход" value={fmtMoney(expense)} />
+      <TipRow color={POSITIVE} label="Доход" value={fmtMoney(income)} />
+      <TipRow color={CAUTION} label="Расход" value={fmtMoney(expense)} />
       <div className="mt-1 border-t border-border/50 pt-1">
         <TipRow
           label="Прибыль"
           value={fmtMoney(profit)}
           strong
-          valueClass={profit < 0 ? "text-rose-500" : undefined}
+          valueClass={profit < 0 ? "text-caution" : undefined}
         />
       </div>
     </TipBox>
@@ -195,16 +195,16 @@ function Segmented<T extends string>({
   options: Array<{ value: T; label: string }>;
 }) {
   return (
-    <div className="flex shrink-0 rounded-lg bg-muted p-0.5">
+    <div className="flex shrink-0 rounded-full bg-muted p-1">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all",
+            "whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
             value === o.value
-              ? "bg-background text-foreground shadow-sm"
+              ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
@@ -237,33 +237,23 @@ function HeroDynamics({
   badge: { month: number; label: string; up: boolean } | null;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-[linear-gradient(130deg,#047857_0%,#0d9488_52%,#0369a1_100%)] p-4 text-white shadow-xl shadow-emerald-900/15">
-      <div className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-      <div className="pointer-events-none absolute -bottom-16 -left-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
-
-      <div className="relative flex items-start justify-between gap-2">
+    <div className="rounded-[28px] bg-card p-5 shadow-soft">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/75">
-            <Sparkles className="h-3.5 w-3.5" />
-            Динамика {year}
-          </div>
-          <div className="mt-2 text-[11px] text-white/75">Средняя прибыль в месяц</div>
-          <div className="text-3xl font-extrabold tracking-tight">
-            {fmtNum(avg)} <span className="text-lg font-semibold text-white/90">₽</span>
+          <div className="text-sm text-muted-foreground">Средняя прибыль в месяц · {year}</div>
+          <div className="mt-1 text-[38px] font-bold leading-tight tracking-tight tabular-nums">
+            {fmtNum(avg)}
+            <span className="ml-1 text-2xl font-semibold text-muted-foreground">₽</span>
           </div>
         </div>
         {badge && (
           <span
             className={cn(
-              "mt-1 flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold backdrop-blur-sm",
-              !badge.up && "text-rose-200"
+              "mt-1 flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+              badge.up ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
             )}
           >
-            {badge.up ? (
-              <TrendingUp className="h-3.5 w-3.5" />
-            ) : (
-              <TrendingDown className="h-3.5 w-3.5" />
-            )}
+            {badge.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
             {MONTHS_SHORT[badge.month]} {badge.label}
           </span>
         )}
@@ -271,36 +261,36 @@ function HeroDynamics({
 
       {spark.length > 0 ? (
         <>
-          <div className="relative mt-2 h-20 w-full">
+          <div className="mt-2 h-20 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={spark} margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="heroFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="#ffffff" stopOpacity={0.04} />
+                    <stop offset="0%" stopColor={INK} stopOpacity={0.14} />
+                    <stop offset="100%" stopColor={INK} stopOpacity={0.01} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="name" hide />
                 <YAxis hide />
                 <Tooltip
                   content={<HeroTip />}
-                  cursor={{ stroke: "rgba(255,255,255,0.4)", strokeWidth: 1, strokeDasharray: "3 3" }}
+                  cursor={{ stroke: "rgba(28,27,23,0.25)", strokeWidth: 1, strokeDasharray: "3 3" }}
                 />
                 <Area
                   type="monotone"
                   dataKey="profit"
                   name="Прибыль"
-                  stroke="#ffffff"
-                  strokeWidth={2.5}
+                  stroke={INK}
+                  strokeWidth={2}
                   fill="url(#heroFill)"
-                  dot={{ r: 2.5, fill: "#ffffff", strokeWidth: 0 }}
-                  activeDot={{ r: 4, fill: "#ffffff", stroke: "rgba(255,255,255,0.4)", strokeWidth: 3 }}
+                  dot={{ r: 2.5, fill: INK, strokeWidth: 0 }}
+                  activeDot={{ r: 4, fill: INK, stroke: "#e8d34f", strokeWidth: 3 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="avg"
                   name="Средняя"
-                  stroke="rgba(255,255,255,0.85)"
+                  stroke={GRAY}
                   strokeWidth={1.5}
                   strokeDasharray="5 4"
                   dot={false}
@@ -308,37 +298,37 @@ function HeroDynamics({
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          <div className="relative mt-1 flex items-center gap-4 text-[10px] text-white/70">
+          <div className="mt-1 flex items-center gap-4 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-0.5 w-4 rounded-full bg-white" />
+              <span className="inline-block h-0.5 w-4 rounded-full" style={{ background: INK }} />
               прибыль за месяц
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 border-t-2 border-dashed border-white/80" />
+              <span className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: GRAY }} />
               средняя
             </span>
           </div>
         </>
       ) : (
-        <div className="relative mt-3 rounded-xl bg-white/10 py-6 text-center text-xs text-white/80">
+        <div className="mt-3 rounded-[18px] bg-muted py-6 text-center text-xs text-muted-foreground">
           За {year} год пока нет операций — заполните месяц, и здесь появится динамика
         </div>
       )}
 
-      <div className="relative mt-3 grid grid-cols-3 divide-x divide-white/15 rounded-xl bg-white/10 py-2 backdrop-blur-sm">
-        <div className="px-2 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-white/70">
+      <div className="mt-4 grid grid-cols-3 border-t border-border pt-3.5 text-center">
+        <div>
+          <div className="text-[11px] text-muted-foreground">
             {best ? `Лучший · ${MONTHS_SHORT[best.month]}` : "Лучший"}
           </div>
-          <div className="mt-0.5 text-sm font-bold tabular-nums">{best ? fmtNum(best.profit) : "—"}</div>
+          <div className="mt-0.5 text-base font-bold tabular-nums">{best ? fmtNum(best.profit) : "—"}</div>
         </div>
-        <div className="px-2 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-white/70">Всего за год</div>
-          <div className="mt-0.5 text-sm font-bold tabular-nums">{fmtNum(yearProfit)}</div>
+        <div className="border-x border-border">
+          <div className="text-[11px] text-muted-foreground">Прибыль за год</div>
+          <div className="mt-0.5 text-base font-bold tabular-nums">{fmtNum(yearProfit)}</div>
         </div>
-        <div className="px-2 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-white/70">Месяцев в плюсе</div>
-          <div className="mt-0.5 text-sm font-bold tabular-nums">
+        <div>
+          <div className="text-[11px] text-muted-foreground">Месяцев в плюсе</div>
+          <div className="mt-0.5 text-base font-bold tabular-nums">
             {inPlus} из {activeCount}
           </div>
         </div>
@@ -347,7 +337,7 @@ function HeroDynamics({
   );
 }
 
-/* ────────────────────────── рейтинг (градиентные полосы) ────────────────────────── */
+/* ────────────────────────── рейтинги (тихие полосы) ────────────────────────── */
 
 function RankBars({
   title,
@@ -355,6 +345,7 @@ function RankBars({
   items,
   metric,
   total,
+  barColor,
   headerRight,
 }: {
   title: string;
@@ -362,49 +353,44 @@ function RankBars({
   items: Array<{ key: string; income: number; expense: number; count: number }>;
   metric: "income" | "expense";
   total: number;
+  barColor?: string;
   headerRight?: ReactNode;
 }) {
   const visible = items.filter((i) => i[metric] > 0).slice(0, 6);
   if (visible.length === 0) return null;
   const max = Math.max(...visible.map((i) => i[metric]));
+  const color = barColor ?? INK;
   return (
-    <Card>
-      <CardHeader className={cn("pb-2", headerRight && "flex-row items-start justify-between gap-2")}>
+    <div className="rounded-[28px] bg-card p-4 shadow-soft">
+      <div className={cn("mb-3 flex items-start justify-between gap-2", headerRight && "flex-row")}>
         <div className="min-w-0">
-          <CardTitle className="text-sm">{title}</CardTitle>
-          {subtitle && <p className="text-[11px] font-normal text-muted-foreground">{subtitle}</p>}
+          <div className="text-sm font-semibold">{title}</div>
+          {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
         </div>
         {headerRight}
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {visible.map((item, idx) => {
-          const color = PALETTE[idx % PALETTE.length];
-          return (
-            <div key={item.key}>
-              <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-                <span className="min-w-0 truncate font-medium">
-                  {item.key}{" "}
-                  <span className="text-[10px] font-normal text-muted-foreground">· {item.count}</span>
-                </span>
-                <span className="shrink-0 tabular-nums">
-                  <span className="font-semibold">{fmtMoney(item[metric])}</span>{" "}
-                  <span className="text-[10px] text-muted-foreground">{pctOf(item[metric], total)}%</span>
-                </span>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${(item[metric] / max) * 100}%`,
-                    background: `linear-gradient(90deg, ${color}, ${color}80)`,
-                  }}
-                />
-              </div>
+      </div>
+      <div className="space-y-3">
+        {visible.map((item) => (
+          <div key={item.key}>
+            <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate font-medium">
+                {item.key} <span className="text-[10px] font-normal text-muted-foreground">· {item.count}</span>
+              </span>
+              <span className="shrink-0 tabular-nums">
+                <span className="font-bold">{fmtMoney(item[metric])}</span>{" "}
+                <span className="text-[10px] text-muted-foreground">{pctOf(item[metric], total)}%</span>
+              </span>
             </div>
-          );
-        })}
-      </CardContent>
-    </Card>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${(item[metric] / max) * 100}%`, background: color }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -430,82 +416,72 @@ function YearCompare({ year }: { year: number }) {
 
   if (!isPro(license)) {
     return (
-      <Card className="relative overflow-hidden border-amber-500/25">
-        <CardContent className="blur-[3px]">
+      <div className="relative overflow-hidden rounded-[28px] bg-card shadow-soft">
+        <div className="pointer-events-none select-none p-4 opacity-40 blur-[3px]">
           <div className="grid grid-cols-3 gap-2 text-center text-sm font-semibold">
-            <span className="text-emerald-600">{fmtMoney(cur.income)}</span>
-            <span className="text-rose-600">{fmtMoney(cur.expense)}</span>
+            <span className="text-positive">{fmtMoney(cur.income)}</span>
+            <span className="text-caution">{fmtMoney(cur.expense)}</span>
             <span>{fmtMoney(cur.profit)}</span>
           </div>
           <div className="mt-3 space-y-2">
             {[70, 45, 60].map((w, i) => (
-              <div key={i} className="h-2.5 rounded-full bg-muted" style={{ width: `${w}%` }} />
+              <div key={i} className="h-2 rounded-full bg-muted" style={{ width: `${w}%` }} />
             ))}
           </div>
-        </CardContent>
+        </div>
         <button
           onClick={openPro}
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 bg-background/60 backdrop-blur-[2px]"
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5"
           aria-label="Сравнение лет доступно в Pro"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/30">
-            <Lock className="h-4 w-4 text-white" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <Lock className="h-4 w-4 text-muted-foreground" />
           </span>
           <span className="text-sm font-bold">Сравнение лет · Pro</span>
           <span className="text-[11px] text-muted-foreground">Как этот год прошёл на фоне прошлого</span>
         </button>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card className="border-amber-500/25">
-      <CardHeader className="flex-row items-center justify-between pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Crown className="h-4 w-4 text-amber-500" />
-          {year} против {year - 1}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!hasPrev ? (
-          <p className="text-sm text-muted-foreground">
-            За {year - 1} год пока нет данных — сравнение появится, когда будет что сравнивать.
-          </p>
-        ) : (
-          <div className="space-y-2.5">
-            {rows.map((r) => {
-              const d = delta(r.cur, r.prev);
-              const good = r.goodWhenUp ? d >= 0 : d <= 0;
-              return (
-                <div key={r.label} className="flex items-center gap-2">
-                  <div className="w-16 shrink-0 text-xs text-muted-foreground">{r.label}</div>
-                  <div className="flex-1 text-sm font-bold tabular-nums">{fmtMoney(r.cur)}</div>
-                  <div className="w-24 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
-                    {year - 1}: {fmtNum(r.prev)}
-                  </div>
-                  <span
-                    className={cn(
-                      "flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums",
-                      good
-                        ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400"
-                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-400/10 dark:text-rose-400"
-                    )}
-                  >
-                    {r.goodWhenUp ? (
-                      <TrendingUp className="h-3.5 w-3.5" />
-                    ) : (
-                      <TrendingDown className="h-3.5 w-3.5" />
-                    )}
-                    {d > 0 ? "+" : ""}
-                    {d}%
-                  </span>
+    <div className="rounded-[28px] bg-card p-4 shadow-soft">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <Crown className="h-4 w-4 text-muted-foreground" />
+        {year} против {year - 1}
+      </div>
+      {!hasPrev ? (
+        <p className="text-sm text-muted-foreground">
+          За {year - 1} год пока нет данных — сравнение появится, когда будет что сравнивать.
+        </p>
+      ) : (
+        <div className="space-y-2.5">
+          {rows.map((r) => {
+            const d = delta(r.cur, r.prev);
+            const good = r.goodWhenUp ? d >= 0 : d <= 0;
+            return (
+              <div key={r.label} className="flex items-center gap-2">
+                <div className="w-16 shrink-0 text-xs text-muted-foreground">{r.label}</div>
+                <div className="flex-1 text-sm font-bold tabular-nums">{fmtMoney(r.cur)}</div>
+                <div className="w-24 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
+                  {year - 1}: {fmtNum(r.prev)}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                <span
+                  className={cn(
+                    "flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                    good ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
+                  )}
+                >
+                  {r.goodWhenUp ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                  {d > 0 ? "+" : ""}
+                  {d}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -654,10 +630,12 @@ export function AnalyticsView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Аналитика</h2>
+      <div className="flex justify-end">
         <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-          <SelectTrigger className="w-28" aria-label="Год">
+          <SelectTrigger
+            className="h-10 w-32 rounded-full border-border bg-card text-sm shadow-soft"
+            aria-label="Год"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -671,8 +649,8 @@ export function AnalyticsView() {
       </div>
 
       {empty ? (
-        <div className="rounded-2xl border border-dashed p-8 text-center">
-          <BarChart3 className="mx-auto h-10 w-10 text-muted-foreground/50" />
+        <div className="rounded-[28px] border border-dashed border-foreground/20 p-8 text-center">
+          <BarChart3 className="mx-auto h-9 w-9 text-muted-foreground/60" />
           <p className="mt-3 text-sm text-muted-foreground">
             Здесь появятся графики, когда будут операции. Загрузите демо-данные во вкладке «Ещё»,
             чтобы посмотреть, как это выглядит.
@@ -713,13 +691,11 @@ export function AnalyticsView() {
 
           {/* Структура доходов по типам услуг, помесячно */}
           {typeSeries.types.length > 0 && (
-            <Card>
-              <CardHeader className="flex-row items-start justify-between gap-2 pb-2">
+            <div className="rounded-[28px] bg-card p-4 shadow-soft">
+              <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <CardTitle className="text-sm">Услуги по месяцам</CardTitle>
-                  <p className="text-[11px] font-normal text-muted-foreground">
-                    из чего складывается доход
-                  </p>
+                  <div className="text-sm font-semibold">Услуги по месяцам</div>
+                  <p className="text-[11px] text-muted-foreground">из чего складывается доход</p>
                 </div>
                 <Segmented
                   value={mode}
@@ -729,102 +705,10 @@ export function AnalyticsView() {
                     { value: "share", label: "Доли" },
                   ]}
                 />
-              </CardHeader>
-              <CardContent className="p-2 pr-3 pt-0">
-                <div className="h-60 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stackData} margin={{ top: 8, right: 2, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="currentColor" opacity={0.1} />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fontSize: 10, fill: "currentColor" }}
-                        tickLine={false}
-                        axisLine={false}
-                        interval={0}
-                        tickMargin={4}
-                        opacity={0.65}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "currentColor" }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={46}
-                        opacity={0.65}
-                        tickFormatter={mode === "share" ? (v: number) => `${v}%` : compactAxis}
-                        domain={mode === "share" ? [0, 100] : undefined}
-                        ticks={mode === "share" ? [0, 25, 50, 75, 100] : undefined}
-                      />
-                      <Tooltip
-                        content={<TypeTip colors={typeColors} mode={mode} />}
-                        cursor={{ fill: "rgba(127,127,127,0.10)" }}
-                      />
-                      {typeSeries.types.map((t) => (
-                        <Bar
-                          key={t}
-                          dataKey={t}
-                          stackId="types"
-                          fill={typeColors.get(t)}
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={22}
-                        />
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                {/* легенда: цвет, сумма за год, доля */}
-                <div className="mt-3 space-y-1.5">
-                  {typeSeries.types.map((t) => (
-                    <div key={t} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ background: typeColors.get(t) }}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-foreground/90">{t}</span>
-                      <span className="shrink-0 font-semibold tabular-nums">
-                        {fmtNum(typeYearTotals[t] ?? 0)} ₽
-                      </span>
-                      <span className="w-9 shrink-0 text-right text-[10px] text-muted-foreground tabular-nums">
-                        {pctOf(typeYearTotals[t] ?? 0, totals.income)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Доходы и расходы по месяцам */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                <span className="flex items-center gap-1.5">
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                  Доходы и расходы
-                </span>
-                <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full" style={{ background: EMERALD }} />
-                  доход
-                </span>
-                <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full" style={{ background: ROSE }} />
-                  расход
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 pr-3 pt-0">
-              <div className="h-52 w-full">
+              </div>
+              <div className="h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={ieData} barGap={2} margin={{ top: 8, right: 2, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id="gradInc" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#34d399" />
-                        <stop offset="100%" stopColor="#059669" />
-                      </linearGradient>
-                      <linearGradient id="gradExp" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#fb7185" />
-                        <stop offset="100%" stopColor="#e11d48" />
-                      </linearGradient>
-                    </defs>
+                  <BarChart data={stackData} margin={{ top: 8, right: 2, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="currentColor" opacity={0.1} />
                     <XAxis
                       dataKey="name"
@@ -841,16 +725,89 @@ export function AnalyticsView() {
                       axisLine={false}
                       width={46}
                       opacity={0.65}
-                      tickFormatter={compactAxis}
+                      tickFormatter={mode === "share" ? (v: number) => `${v}%` : compactAxis}
+                      domain={mode === "share" ? [0, 100] : undefined}
+                      ticks={mode === "share" ? [0, 25, 50, 75, 100] : undefined}
                     />
-                    <Tooltip content={<IeTip />} cursor={{ fill: "rgba(127,127,127,0.10)" }} />
-                    <Bar dataKey="Доход" fill="url(#gradInc)" radius={[4, 4, 0, 0]} maxBarSize={14} />
-                    <Bar dataKey="Расход" fill="url(#gradExp)" radius={[4, 4, 0, 0]} maxBarSize={14} />
+                    <Tooltip
+                      content={<TypeTip colors={typeColors} mode={mode} />}
+                      cursor={{ fill: "rgba(127,127,127,0.08)" }}
+                    />
+                    {typeSeries.types.map((t) => (
+                      <Bar
+                        key={t}
+                        dataKey={t}
+                        stackId="types"
+                        fill={typeColors.get(t)}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={22}
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
+              {/* легенда: цвет и доля услуги (суммы — в «Откуда деньги», без повторов) */}
+              <div className="mt-3 space-y-1.5">
+                {typeSeries.types.map((t) => (
+                  <div key={t} className="flex items-center gap-2 text-xs">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: typeColors.get(t) }}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-foreground/90">{t}</span>
+                    <span className="w-9 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
+                      {pctOf(typeYearTotals[t] ?? 0, totals.income)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Доходы и расходы по месяцам */}
+          <div className="rounded-[28px] bg-card p-4 shadow-soft">
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="flex items-center gap-1.5 text-sm font-semibold">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                Доходы и расходы
+              </span>
+              <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                <span className="h-2 w-2 rounded-full" style={{ background: POSITIVE }} />
+                доход
+              </span>
+              <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                <span className="h-2 w-2 rounded-full" style={{ background: CAUTION }} />
+                расход
+              </span>
+            </div>
+            <div className="h-52 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={ieData} barGap={2} margin={{ top: 8, right: 2, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="currentColor" opacity={0.1} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: "currentColor" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                    tickMargin={4}
+                    opacity={0.65}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "currentColor" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={46}
+                    opacity={0.65}
+                    tickFormatter={compactAxis}
+                  />
+                  <Tooltip content={<IeTip />} cursor={{ fill: "rgba(127,127,127,0.08)" }} />
+                  <Bar dataKey="Доход" fill={POSITIVE} radius={[4, 4, 0, 0]} maxBarSize={14} />
+                  <Bar dataKey="Расход" fill={CAUTION} radius={[4, 4, 0, 0]} maxBarSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
           {/* Куда уходят деньги */}
           <RankBars
@@ -859,6 +816,7 @@ export function AnalyticsView() {
             items={expenseTypes}
             metric="expense"
             total={totals.expense}
+            barColor={CAUTION}
           />
 
           {/* Сравнение лет (Pro) */}

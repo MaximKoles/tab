@@ -44,6 +44,10 @@ interface UiState {
   openAdd: (prefill?: AddPrefill) => void;
   openEdit: (opId: string) => void;
   closeAdd: () => void;
+  /** Диалог «новый клиент» — открывает «+» в шапке вкладки «Клиенты» */
+  clientFormOpen: boolean;
+  openClientForm: () => void;
+  closeClientForm: () => void;
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -65,4 +69,7 @@ export const useUi = create<UiState>((set) => ({
   openAdd: (prefill = {}) => set({ addSheet: { open: true, editId: null, prefill } }),
   openEdit: (opId) => set({ addSheet: { open: true, editId: opId, prefill: {} } }),
   closeAdd: () => set({ addSheet: { open: false, editId: null, prefill: {} } }),
+  clientFormOpen: false,
+  openClientForm: () => set({ clientFormOpen: true }),
+  closeClientForm: () => set({ clientFormOpen: false }),
 }));

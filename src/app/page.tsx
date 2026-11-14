@@ -2,8 +2,6 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { Plus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { AddOperationSheet } from "@/components/app/add-operation-sheet";
 import { ProDialog } from "@/components/app/pro-dialog";
@@ -14,9 +12,10 @@ import { ClientsView } from "@/components/app/clients-view";
 import { AnalyticsView } from "@/components/app/analytics-view";
 import { SettingsView } from "@/components/app/settings-view";
 import { useStore } from "@/lib/store";
-import { useUi } from "@/lib/ui-store";
+import { useUi, type TabKey } from "@/lib/ui-store";
 import { isPro } from "@/lib/limits";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 function ServiceWorkerRegister() {
   useEffect(() => {
@@ -50,10 +49,47 @@ const tgApi = () => {
   }
 };
 
+const TITLES: Record<TabKey, string> = {
+  ledger: "Учёт",
+  clients: "Клиенты",
+  analytics: "Аналитика",
+  settings: "Ещё",
+};
+
+/* Круглая пилюля-кнопка в шапке */
+function PillButton({
+  onClick,
+  label,
+  dark,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  dark?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors",
+        dark
+          ? "bg-primary text-primary-foreground hover:bg-primary/85"
+          : "border border-border bg-card text-foreground hover:bg-muted"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function Home() {
   const mounted = useMounted();
   const tab = useUi((s) => s.tab);
   const openAdd = useUi((s) => s.openAdd);
+  const openClientForm = useUi((s) => s.openClientForm);
   const openSearch = useUi((s) => s.openSearch);
   const license = useStore((s) => s.license);
   const pro = isPro(license);
@@ -76,68 +112,50 @@ export default function Home() {
 
   if (!mounted) {
     return (
-      <main className="mx-auto max-w-3xl space-y-4 p-4">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <main className="mx-auto w-full max-w-md space-y-4 px-5 pt-10">
+        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-24 w-full rounded-3xl" />
+        <Skeleton className="h-64 w-full rounded-3xl" />
       </main>
     );
   }
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-base font-bold text-white">
-              ₽
-            </div>
-            <div>
-              <div className="text-base font-bold leading-none">Гонорар</div>
-              <div className="text-[11px] leading-tight text-muted-foreground">
-                учёт доходов фрилансера
-              </div>
-            </div>
-          </div>
+      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-36">
+        {/* Шапка экрана: крупный заголовок + пилюли действий */}
+        <div className="flex items-center justify-between gap-3 pb-5 pt-9">
+          <h1 className="text-[32px] font-bold leading-none tracking-tight">{TITLES[tab]}</h1>
           <div className="flex items-center gap-2">
             {!pro && (
-              <Badge
-                variant="outline"
-                className="cursor-pointer border-amber-400 text-amber-600 dark:text-amber-400"
+              <button
                 onClick={() => useUi.getState().openPro()}
+                className="flex h-11 shrink-0 items-center rounded-full bg-lemon px-3.5 text-sm font-bold text-foreground transition-colors hover:brightness-95"
+                aria-label="Про версию"
               >
                 Pro
-              </Badge>
+              </button>
             )}
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-9 w-9 rounded-full"
-              aria-label="Поиск по операциям и клиентам"
-              onClick={openSearch}
-            >
-              <Search className="h-4 w-4" />
-            </Button>
+            <PillButton onClick={openSearch} label="Поиск по операциям и клиентам">
+              <Search className="h-[18px] w-[18px]" />
+            </PillButton>
+            {(tab === "ledger" || tab === "clients") && (
+              <PillButton
+                dark
+                onClick={tab === "ledger" ? () => openAdd() : openClientForm}
+                label={tab === "ledger" ? "Добавить операцию" : "Новый клиент"}
+              >
+                <Plus className="h-5 w-5" />
+              </PillButton>
+            )}
           </div>
         </div>
-      </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-32 pt-4">
         {tab === "ledger" && <LedgerView />}
         {tab === "clients" && <ClientsView />}
         {tab === "analytics" && <AnalyticsView />}
         {tab === "settings" && <SettingsView />}
       </main>
-
-      {/* Кнопка быстрого ввода */}
-      <Button
-        onClick={() => openAdd()}
-        aria-label="Добавить операцию"
-        size="lg"
-        className="fixed bottom-[76px] right-4 z-40 h-14 w-14 rounded-full bg-emerald-600 p-0 shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 sm:right-[max(1rem,calc(50vw-22rem))]"
-      >
-        <Plus className="h-7 w-7" />
-      </Button>
 
       <BottomNav />
       <AddOperationSheet />

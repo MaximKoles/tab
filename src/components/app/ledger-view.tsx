@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, HandCoins, Lock, TrendingDown, TrendingUp, Trophy, Wallet, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, Lock, Plus, TrendingDown, TrendingUp, Trophy, Wallet, Zap } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
-import { fmtMoney, fmtNum, fmtDateFull, weekdayOf, MONTHS_NOM, MONTHS_SHORT, ruPlural } from "@/lib/format";
+import { fmtMoney, fmtNum, fmtCompact, MONTHS_NOM, MONTHS_SHORT, WEEKDAYS_SHORT, ruPlural } from "@/lib/format";
 import { totalsForMonth, openDeals } from "@/lib/analytics";
 import { isPro } from "@/lib/limits";
 import type { Operation } from "@/lib/types";
@@ -19,78 +16,63 @@ const MONTHS_DAT = [
   "июлю", "августу", "сентябрю", "октябрю", "ноябрю", "декабрю",
 ];
 
-function monthLabel(y: number, m: number) {
-  const nom = MONTHS_NOM[m - 1];
-  return `${nom[0].toUpperCase()}${nom.slice(1)} ${y}`;
-}
-
 function shiftMonth(y: number, m: number, delta: number): { y: number; m: number } {
   const d = new Date(y, m - 1 + delta, 1);
   return { y: d.getFullYear(), m: d.getMonth() + 1 };
 }
 
+function monthIncome(operations: Operation[], y: number, m: number): number {
+  const prefix = `${y}-${String(m).padStart(2, "0")}`;
+  let sum = 0;
+  for (const o of operations) if (o.date.startsWith(prefix) && o.kind === "income") sum += o.amount;
+  return sum;
+}
+
+/* Одна операция — белая карточка в строке таймлайна */
 function OperationRow({ op }: { op: Operation }) {
   const openEdit = useUi((s) => s.openEdit);
   const income = op.kind === "income";
   const letter = (op.type?.trim()?.[0] ?? (income ? "+" : "−")).toUpperCase();
-  const hasDeal = (op.part === "prepay" || op.part === "rest") && !!op.dealTotal;
   return (
     <button
       onClick={() => openEdit(op.id)}
-      className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-muted/60 active:bg-muted"
+      className="flex w-full items-center gap-2.5 rounded-[22px] bg-card px-2.5 py-3 text-left shadow-soft transition-transform active:scale-[0.99]"
     >
-      <div
+      <span
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-sm",
-          income
-            ? "bg-gradient-to-br from-emerald-400 to-teal-600"
-            : "bg-gradient-to-br from-rose-400 to-red-500"
+          "flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
+          income ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
         )}
         aria-hidden
       >
         {letter}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{op.type || "Без категории"}</div>
-        <div className="truncate text-xs text-muted-foreground">
-          {[op.clientName, op.note].filter(Boolean).join(" · ") || "—"}
-        </div>
-        {(op.source || op.part !== "single" || hasDeal) && (
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            {op.source && (
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                {op.source}
-              </Badge>
-            )}
-            {op.part === "prepay" && (
-              <Badge className="bg-amber-100 px-1.5 py-0 text-[10px] text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                предоплата
-              </Badge>
-            )}
-            {op.part === "rest" && (
-              <Badge className="bg-sky-100 px-1.5 py-0 text-[10px] text-sky-800 dark:bg-sky-900 dark:text-sky-200">
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-semibold">{op.type || "Без категории"}</span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+          {[op.clientName, op.source].filter(Boolean).join(" · ") || "—"}
+        </span>
+        {(op.part === "prepay" || op.part === "rest") && (
+          <span className="mt-1.5 flex">
+            {op.part === "prepay" ? (
+              <span className="rounded-full bg-lemon-soft px-2 py-0.5 text-[10px] font-semibold">предоплата</span>
+            ) : (
+              <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 остаток
-              </Badge>
+              </span>
             )}
-          </div>
+          </span>
         )}
-      </div>
-      <div className="shrink-0 text-right">
-        <div
-          className={cn(
-            "text-sm font-bold tabular-nums",
-            income ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-          )}
-        >
-          {income ? "+" : "−"}
-          {fmtMoney(op.amount)}
-        </div>
-        {hasDeal && (
-          <div className="text-[10px] text-muted-foreground tabular-nums">
-            сделка {fmtNum(op.dealTotal ?? 0)} ₽
-          </div>
+      </span>
+      <span
+        className={cn(
+          "shrink-0 text-sm font-bold tabular-nums",
+          income ? "text-positive" : "text-foreground"
         )}
-      </div>
+      >
+        {income ? "+" : "−"}
+        {fmtMoney(op.amount)}
+      </span>
     </button>
   );
 }
@@ -132,16 +114,43 @@ export function LedgerView() {
     return Array.from(map.entries());
   }, [operations, y, m]);
 
-  /* месяцы года, в которых есть операции — для полосы навигации */
-  const monthsWithData = useMemo(() => {
-    const s = new Set<number>();
-    for (const op of operations) if (op.date.startsWith(`${y}-`)) s.add(Number(op.date.slice(5, 7)));
-    return s;
+  /* Непрерывная полоса месяцев от первого года с данными до выбранного/текущего */
+  const strip = useMemo(() => {
+    let minY = now.getFullYear();
+    for (const op of operations) {
+      const yy = Number(op.date.slice(0, 4));
+      if (yy < minY) minY = yy;
+    }
+    minY = Math.min(minY, y);
+    const maxY = Math.max(y, now.getFullYear());
+    const out: Array<{ y: number; m: number }> = [];
+    for (let yy = minY; yy <= maxY; yy++) for (let mm = 1; mm <= 12; mm++) out.push({ y: yy, m: mm });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operations, y]);
+
+  /* доход по месяцам полосы — для подписей под названиями */
+  const stripIncomes = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const op of operations) {
+      if (op.kind !== "income") continue;
+      const key = op.date.slice(0, 7);
+      map.set(key, (map.get(key) ?? 0) + op.amount);
+    }
+    return map;
+  }, [operations]);
+
+  const stripRef = useRef<HTMLDivElement>(null);
+  const selectedPillRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // держим выбранный месяц в зоне видимости полосы
+    selectedPillRef.current?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [y, m]);
 
   const goalPct =
     settings.monthlyGoal > 0 ? Math.min(100, Math.round((totals.income / settings.monthlyGoal) * 100)) : 0;
-  const monthDeals = deals.filter((d) => d.lastDate.startsWith(`${y}-${String(m).padStart(2, "0")}`));
+  const monthPrefix = `${y}-${String(m).padStart(2, "0")}`;
+  const monthDeals = deals.filter((d) => d.lastDate.startsWith(monthPrefix));
   const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
 
   /* Тренд: доход выбранного месяца против предыдущего */
@@ -157,7 +166,7 @@ export function LedgerView() {
       if (pct >= 1000) {
         const times = Math.max(2, Math.round(cur / prevIncome));
         const pl = ruPlural(times, ["раз", "раза", "раз"]);
-        return { up: true, text: `в ${times} ${pl} больше ${MONTHS_DAT[prevMonth.m - 1]}` };
+        return { up: true, text: `×${times} к ${MONTHS_DAT[prevMonth.m - 1]}` };
       }
       if (pct > 0) return { up: true, text: `+${pct}% к ${MONTHS_DAT[prevMonth.m - 1]}` };
       if (pct < 0) return { up: false, text: `−${Math.abs(pct)}% к ${MONTHS_DAT[prevMonth.m - 1]}` };
@@ -190,103 +199,87 @@ export function LedgerView() {
 
   return (
     <div className="space-y-4">
-      {/* ─── Hero-карточка месяца: итоги + навигация ─── */}
-      <div className="relative overflow-hidden rounded-2xl bg-[linear-gradient(130deg,#047857_0%,#0d9488_52%,#0369a1_100%)] p-4 text-white shadow-xl shadow-emerald-900/15">
-        <div className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-16 -left-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
-
-        <div className="relative flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMonth(shiftMonth(y, m, -1))}
-            aria-label="Предыдущий месяц"
-            className="text-white hover:bg-white/15 hover:text-white"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex flex-col items-center">
-            <span className="text-base font-bold">{monthLabel(y, m)}</span>
-            {!isCurrentMonth && (
+      {/* ─── Полоса месяцев ─── */}
+      <div ref={stripRef} className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
+        {strip.map(({ y: sy, m: sm }, idx) => {
+          const selected = sy === y && sm === m;
+          const isNow = sy === now.getFullYear() && sm === now.getMonth() + 1;
+          const inc = stripIncomes.get(`${sy}-${String(sm).padStart(2, "0")}`);
+          const firstOfYear = idx === 0 || strip[idx - 1].y !== sy;
+          return (
+            <div key={`${sy}-${sm}`} className="flex items-center gap-2">
+              {firstOfYear && (
+                <span className="shrink-0 pl-1 pr-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+                  {sy}
+                </span>
+              )}
               <button
-                onClick={() => setMonth({ y: now.getFullYear(), m: now.getMonth() + 1 })}
-                className="text-[10px] text-white/70 underline underline-offset-2 hover:text-white"
+                ref={selected ? selectedPillRef : undefined}
+                type="button"
+                onClick={() => setMonth({ y: sy, m: sm })}
+                aria-label={`Перейти к ${MONTHS_NOM[sm - 1]} ${sy}`}
+                aria-current={selected ? "true" : undefined}
+                className={cn(
+                  "flex min-w-[58px] shrink-0 flex-col items-center rounded-[20px] px-2.5 py-2 transition-colors",
+                  selected
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-card text-foreground shadow-soft hover:bg-muted"
+                )}
               >
-                вернуться к текущему месяцу
+                <span className="text-[13px] font-semibold leading-tight">{MONTHS_SHORT[sm - 1]}</span>
+                <span
+                  className={cn(
+                    "mt-0.5 text-[10px] leading-tight tabular-nums",
+                    selected ? "text-lemon dark:text-caution" : inc ? "text-muted-foreground" : "text-muted-foreground/50"
+                  )}
+                >
+                  {inc ? fmtCompact(inc) : "—"}
+                </span>
+                {isNow && !selected && <span className="mt-1 h-1 w-1 rounded-full bg-caution" />}
               </button>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMonth(shiftMonth(y, m, 1))}
-            aria-label="Следующий месяц"
-            className="text-white hover:bg-white/15 hover:text-white"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </Button>
-        </div>
+            </div>
+          );
+        })}
+      </div>
 
-        <div className="relative mt-3">
-          <div className="text-[11px] text-white/75">Прибыль за месяц</div>
-          <div className="text-3xl font-extrabold tracking-tight">
-            {fmtNum(totals.profit)} <span className="text-lg font-semibold text-white/90">₽</span>
-          </div>
+      {/* ─── Hero-карточка месяца: одна главная сумма ─── */}
+      <div className="rounded-[28px] bg-card p-5 shadow-soft">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-muted-foreground">
+            Прибыль · {MONTHS_NOM[m - 1][0].toUpperCase() + MONTHS_NOM[m - 1].slice(1)}
+            {!isCurrentMonth && ` ${y}`}
+          </span>
           {trend && (
-            <div
+            <span
               className={cn(
-                "mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                trend.up ? "bg-emerald-400/20 text-emerald-100" : "bg-rose-400/20 text-rose-100"
+                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                trend.up ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
               )}
             >
               {trend.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
               {trend.text}
-            </div>
+            </span>
           )}
         </div>
-
-        <div className="relative mt-3 grid grid-cols-3 divide-x divide-white/15 rounded-xl bg-white/10 py-2 backdrop-blur-sm">
-          <div className="px-2 text-center">
-            <div className="text-[10px] uppercase tracking-wide text-white/70">Доход</div>
-            <div className="mt-0.5 text-sm font-bold tabular-nums">{fmtNum(totals.income)}</div>
-          </div>
-          <div className="px-2 text-center">
-            <div className="text-[10px] uppercase tracking-wide text-white/70">Расход</div>
-            <div className="mt-0.5 text-sm font-bold tabular-nums">{fmtNum(totals.expense)}</div>
-          </div>
-          <div className="px-2 text-center">
-            <div className="text-[10px] uppercase tracking-wide text-white/70">Операций</div>
-            <div className="mt-0.5 text-sm font-bold tabular-nums">{totals.count}</div>
-          </div>
+        <div className="mt-1 text-[38px] font-bold leading-tight tracking-tight tabular-nums">
+          {fmtNum(totals.profit)}
+          <span className="ml-1 text-2xl font-semibold text-muted-foreground">₽</span>
         </div>
-
-        {/* Полоса месяцев: кликабельна, видно заполненные */}
-        <div className="relative mt-3 grid grid-cols-6 gap-1">
-          {MONTHS_SHORT.map((name, idx) => {
-            const mm = idx + 1;
-            const isActive = mm === m;
-            const has = monthsWithData.has(mm);
-            const isNow = y === now.getFullYear() && mm === now.getMonth() + 1;
-            return (
-              <button
-                key={mm}
-                type="button"
-                onClick={() => setMonth({ y, m: mm })}
-                aria-label={`Перейти к ${name} ${y}`}
-                className={cn(
-                  "rounded-lg py-1.5 text-[11px] font-semibold transition-colors",
-                  isActive
-                    ? "bg-white text-teal-800 shadow"
-                    : has
-                      ? "bg-white/20 text-white hover:bg-white/30"
-                      : "bg-white/10 text-white/50 hover:bg-white/20",
-                  isNow && !isActive && "ring-1 ring-white/50"
-                )}
-              >
-                {name}
-              </button>
-            );
-          })}
+        <div className="mt-4 flex gap-8 border-t border-border pt-3.5">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-positive" />
+              Доход
+            </div>
+            <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmtNum(totals.income)} ₽</div>
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-caution" />
+              Расход
+            </div>
+            <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmtNum(totals.expense)} ₽</div>
+          </div>
         </div>
       </div>
 
@@ -294,16 +287,16 @@ export function LedgerView() {
       {lastIncome && (
         <button
           onClick={openRepeat}
-          className="flex w-full items-center gap-2.5 rounded-xl border border-dashed px-3 py-2.5 text-left transition-colors hover:bg-muted/60"
+          className="flex w-full items-center gap-2.5 rounded-full border border-dashed border-foreground/25 px-4 py-3 text-left transition-colors hover:bg-card"
         >
-          <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+          <Zap className="h-4 w-4 shrink-0 text-caution" />
           <span className="min-w-0 flex-1 truncate text-sm">
-            <span className="font-semibold">Повторить доход</span>
+            <span className="font-semibold">Повторить</span>
             <span className="ml-1.5 text-muted-foreground">
               {[lastIncome.type, lastIncome.clientName].filter(Boolean).join(" · ")}
             </span>
           </span>
-          <span className="shrink-0 text-sm font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
+          <span className="shrink-0 text-sm font-semibold text-muted-foreground tabular-nums">
             +{fmtMoney(lastIncome.amount)}
           </span>
         </button>
@@ -311,48 +304,27 @@ export function LedgerView() {
 
       {/* ─── Открытые доплаты ─── */}
       {monthDeals.length > 0 && (
-        <Card className="border-amber-300/60 dark:border-amber-800/60">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <HandCoins className="h-4 w-4 text-amber-500" />
-              Ждут доплаты
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 p-4 pt-0">
+        <div className="rounded-[28px] bg-card p-4 shadow-soft">
+          <div className="mb-3 text-sm font-semibold">Ждут доплаты</div>
+          <div className="space-y-4">
             {monthDeals.slice(0, 5).map((d) => {
               const paidPct = d.total > 0 ? Math.min(100, Math.round((d.paid / d.total) * 100)) : 0;
               return (
-                <div
-                  key={d.dealId}
-                  className="rounded-xl bg-amber-50 p-3 dark:bg-amber-950/40"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">
-                        {d.clientName} · {d.type || "заказ"}
-                      </div>
-                      <div className="text-xs text-muted-foreground tabular-nums">
-                        оплачено {fmtNum(d.paid)} из {fmtNum(d.total)} ₽
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <div className="text-[10px] uppercase tracking-wide text-amber-700/70 dark:text-amber-400/70">
-                        осталось
-                      </div>
-                      <div className="text-base font-bold text-amber-600 tabular-nums dark:text-amber-400">
-                        {fmtMoney(d.remaining)}
-                      </div>
-                    </div>
+                <div key={d.dealId}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm font-medium">
+                      {d.clientName}
+                      {d.type && <span className="text-muted-foreground"> · {d.type}</span>}
+                    </span>
+                    <span className="shrink-0 text-sm font-bold text-caution tabular-nums">
+                      {fmtMoney(d.remaining)}
+                    </span>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-amber-200/70 dark:bg-amber-900/60">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all"
-                      style={{ width: `${paidPct}%` }}
-                    />
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-caution transition-all" style={{ width: `${paidPct}%` }} />
                   </div>
-                  <Button
-                    size="sm"
-                    className="mt-2.5 h-9 w-full border-0 bg-gradient-to-br from-amber-400 to-orange-500 text-base font-bold text-white shadow-md shadow-amber-500/25 hover:from-amber-500 hover:to-orange-600"
+                  <button
+                    className="mt-2.5 flex h-10 w-full items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/85"
                     onClick={() =>
                       openAdd({
                         kind: "income",
@@ -362,105 +334,94 @@ export function LedgerView() {
                       })
                     }
                   >
-                    Записать {fmtMoney(d.remaining)}
-                  </Button>
+                    Записать остаток
+                  </button>
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* ─── Цель по доходу (Pro) ─── */}
       {settings.monthlyGoal > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            {isPro(license) ? (
-              <>
-                <div className="mb-2 flex items-baseline justify-between text-sm">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    Цель месяца
-                    {goalPct >= 100 && <Trophy className="h-4 w-4 text-amber-500" />}
-                  </span>
-                  <span className="font-semibold tabular-nums">
-                    {fmtMoney(totals.income)} / {fmtMoney(settings.monthlyGoal)}
-                  </span>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500 transition-all"
-                    style={{ width: `${goalPct}%` }}
-                  />
-                </div>
-                <div className="mt-1.5 flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    {goalPct >= 100
-                      ? "Цель достигнута — супер!"
-                      : `Осталось ${fmtMoney(Math.max(0, settings.monthlyGoal - totals.income))}`}
-                  </span>
-                  <span className="font-semibold tabular-nums">{goalPct}%</span>
-                </div>
-              </>
-            ) : (
-              <button className="flex w-full items-center gap-3 text-left" onClick={openPro}>
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/25">
-                  <Lock className="h-4 w-4 text-white" />
+        <div className="rounded-[28px] bg-card p-4 shadow-soft">
+          {isPro(license) ? (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  Цель месяца
+                  {goalPct >= 100 && <Trophy className="h-4 w-4 text-caution" />}
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold">Цель месяца · Pro</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    Прогресс до цели и мотивация каждый день
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </button>
-            )}
-          </CardContent>
-        </Card>
+                <span className="text-sm font-bold tabular-nums">{goalPct}%</span>
+              </div>
+              <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn("h-full rounded-full transition-all", goalPct >= 100 ? "bg-positive" : "bg-primary")}
+                  style={{ width: `${goalPct}%` }}
+                />
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground tabular-nums">
+                {goalPct >= 100
+                  ? "Цель достигнута — супер!"
+                  : `Осталось ${fmtMoney(Math.max(0, settings.monthlyGoal - totals.income))}`}
+                <span className="mx-1.5 text-muted-foreground/50">·</span>
+                цель {fmtNum(settings.monthlyGoal)} ₽
+              </div>
+            </>
+          ) : (
+            <button className="flex w-full items-center gap-3 text-left" onClick={openPro}>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted">
+                <Lock className="h-4 w-4 text-muted-foreground" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">Цель месяца · Pro</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  Прогресс до цели каждый день
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          )}
+        </div>
       )}
 
-      {/* ─── Список операций по дням ─── */}
+      {/* ─── Список операций: колонка дней + карточки ─── */}
       {groups.length === 0 ? (
-        <div className="rounded-2xl border border-dashed p-8 text-center">
-          <Wallet className="mx-auto h-10 w-10 text-muted-foreground/50" />
+        <div className="rounded-[28px] border border-dashed border-foreground/20 p-8 text-center">
+          <Wallet className="mx-auto h-9 w-9 text-muted-foreground/60" />
           <p className="mt-3 text-sm text-muted-foreground">
-            В этом месяце пока пусто.
+            В {MONTHS_NOM[m - 1]}е пока пусто.
             <br />
             Нажмите «+», чтобы записать первую операцию.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {groups.map(([date, ops]) => {
-            const dayNet = ops.reduce((s, o) => s + (o.kind === "income" ? o.amount : -o.amount), 0);
+            const [, mm, dd] = date.split("-").map(Number);
+            const wd = WEEKDAYS_SHORT[new Date(Number(date.slice(0, 4)), mm - 1, dd).getDay()];
             return (
-              <div key={date}>
-                <div className="mb-1 flex items-baseline justify-between px-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {fmtDateFull(date)} · {weekdayOf(date)}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-xs font-semibold tabular-nums",
-                      dayNet > 0
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : dayNet < 0
-                          ? "text-rose-600 dark:text-rose-400"
-                          : "text-muted-foreground"
-                    )}
-                  >
-                    {dayNet > 0 ? "+" : ""}
-                    {fmtMoney(dayNet)}
-                  </span>
+              <div key={date} className="flex gap-3">
+                <div className="w-9 shrink-0 pt-3">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{wd}</div>
+                  <div className="text-xl font-bold leading-tight tabular-nums">{dd}</div>
                 </div>
-                <Card className="divide-y divide-border/60 py-1">
+                <div className="min-w-0 flex-1 space-y-2">
                   {ops.map((op) => (
                     <OperationRow key={op.id} op={op} />
                   ))}
-                </Card>
+                </div>
               </div>
             );
           })}
+          <button
+            onClick={() => openAdd()}
+            className="flex w-full items-center justify-center gap-2 rounded-[22px] border border-dashed border-foreground/20 py-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+          >
+            <Plus className="h-4 w-4" />
+            Записать операцию
+          </button>
         </div>
       )}
     </div>

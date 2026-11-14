@@ -255,8 +255,8 @@ export function AddOperationSheet() {
 
   return (
     <Drawer open={addSheet.open} onOpenChange={(v) => !v && closeAdd()}>
-      <DrawerContent className="mx-auto max-w-3xl">
-        <div className="mx-auto max-h-[82dvh] w-full max-w-3xl overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+      <DrawerContent className="mx-auto max-w-md">
+        <div className="mx-auto max-h-[82dvh] w-full max-w-md overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
           <DrawerHeader className="px-0 pb-2 pt-1">
             <DrawerTitle>{editing ? "Изменить операцию" : "Новая операция"}</DrawerTitle>
           </DrawerHeader>
@@ -270,12 +270,10 @@ export function AddOperationSheet() {
                 aria-selected={form.kind === k}
                 onClick={() => patch({ kind: k })}
                 className={cn(
-                  "min-h-[44px] rounded-lg border font-medium transition-colors",
+                  "min-h-[46px] rounded-full font-semibold transition-colors",
                   form.kind === k
-                    ? k === "income"
-                      ? "border-emerald-600 bg-emerald-600 text-white"
-                      : "border-rose-600 bg-rose-600 text-white"
-                    : "bg-background text-muted-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
                 )}
               >
                 {k === "income" ? "Доход" : "Расход"}
@@ -392,10 +390,10 @@ export function AddOperationSheet() {
                         onClick={() => patch({ part: val })}
                         aria-pressed={form.part === val}
                         className={cn(
-                          "min-h-[40px] rounded-lg border text-sm font-medium",
+                          "min-h-[40px] rounded-full text-sm font-semibold transition-colors",
                           form.part === val
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                            : "text-muted-foreground hover:bg-muted"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:text-foreground"
                         )}
                       >
                         {label}
@@ -456,7 +454,7 @@ export function AddOperationSheet() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-11 w-11 shrink-0 text-rose-600 hover:text-rose-700"
+                className="h-12 w-12 shrink-0 rounded-full text-destructive hover:text-destructive"
                 onClick={handleDelete}
                 aria-label="Удалить операцию"
               >
@@ -464,10 +462,7 @@ export function AddOperationSheet() {
               </Button>
             )}
             <Button
-              className={cn(
-                "h-11 flex-1",
-                income ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
-              )}
+              className="h-12 flex-1 rounded-full text-base font-semibold"
               onClick={handleSave}
               disabled={saving}
             >

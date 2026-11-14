@@ -26,6 +26,8 @@ export const WEEKDAYS = [
   "четверг", "пятница", "суббота",
 ];
 
+export const WEEKDAYS_SHORT = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+
 const moneyFmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 
 export function fmtNum(n: number): string {
@@ -35,6 +37,15 @@ export function fmtNum(n: number): string {
 /** 5000 → «5 000 ₽» */
 export function fmtMoney(n: number): string {
   return `${moneyFmt.format(n)} ₽`;
+}
+
+/** Компактно для подписей: 50000 → «50к», 12500 → «12,5к», 1200000 → «1,2М» */
+export function fmtCompact(n: number): string {
+  const abs = Math.abs(n);
+  const trim = (s: string) => s.replace(".0", "").replace(".", ",");
+  if (abs >= 1_000_000) return `${trim((n / 1_000_000).toFixed(1))}М`;
+  if (abs >= 1_000) return `${trim((n / 1_000).toFixed(1))}к`;
+  return String(n);
 }
 
 /** Доход зелёным со знаком плюс, расход — с минусом */

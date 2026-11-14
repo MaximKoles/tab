@@ -29,10 +29,10 @@ export function ProDialog() {
 
   return (
     <Dialog open={proOpen} onOpenChange={(v) => !v && closePro()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Crown className="h-5 w-5 text-amber-500" />
+            <Crown className="h-5 w-5" />
             Гонорар Pro
           </DialogTitle>
           <DialogDescription>
@@ -42,12 +42,12 @@ export function ProDialog() {
         <ul className="space-y-2">
           {BENEFITS.map((b) => (
             <li key={b} className="flex items-start gap-2 text-sm">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-positive" />
               <span>{b}</span>
             </li>
           ))}
         </ul>
-        <div className="rounded-lg bg-muted p-3 text-center">
+        <div className="rounded-[18px] bg-lemon-soft p-3 text-center">
           <div className="text-2xl font-bold">{PRICE.pro} ₽</div>
           <div className="text-xs text-muted-foreground">
             покупателям таблицы — ранняя цена {PRICE.earlyBird} ₽
@@ -55,6 +55,7 @@ export function ProDialog() {
         </div>
         <div className="flex flex-col gap-2">
           <Button
+            className="h-11 rounded-full font-semibold"
             onClick={() => {
               closePro();
               setTab("settings");
@@ -62,7 +63,7 @@ export function ProDialog() {
           >
             Активировать ключ
           </Button>
-          <Button variant="outline" onClick={closePro}>
+          <Button variant="outline" className="h-10 rounded-full" onClick={closePro}>
             Позже
           </Button>
         </div>

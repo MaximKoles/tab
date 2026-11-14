@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +47,7 @@ import { importFromCsv, exportToCsv, downloadFile } from "@/lib/csv";
 import { totalsForMonth } from "@/lib/analytics";
 import { buildMonthReport, copyText } from "@/lib/report";
 import { fmtNum, MONTHS_NOM } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   sbGetUser,
   sbPush,
@@ -73,25 +72,25 @@ function SectionCard({
   onLockClick?: () => void;
 }) {
   return (
-    <Card className="relative">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
+    <div className="relative rounded-[28px] bg-card p-4 shadow-soft">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
           <Icon className="h-4 w-4 text-muted-foreground" />
-          {title}
-          {locked && <Lock className="h-3.5 w-3.5 text-amber-500" />}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className={locked ? "pointer-events-none space-y-3 opacity-50" : "space-y-3"}>
+        </span>
+        <span className="text-sm font-semibold">{title}</span>
+        {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+      </div>
+      <div className={locked ? "pointer-events-none space-y-3 opacity-50" : "space-y-3"}>
         {children}
-      </CardContent>
+      </div>
       {locked && (
         <button
-          className="absolute inset-0 z-10 rounded-xl"
+          className="absolute inset-0 z-10 rounded-[28px]"
           onClick={onLockClick}
           aria-label={`${title} доступно в Pro`}
         />
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -330,109 +329,103 @@ export function SettingsView() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold">Ещё</h2>
-
       {/* Инструменты */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Инструменты</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          <button
-            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
-            onClick={openSearch}
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
-              <Search className="h-4 w-4" />
+      <div className="rounded-[28px] bg-card p-2 shadow-soft">
+        <button
+          className="flex w-full items-center gap-3 rounded-[20px] px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
+          onClick={openSearch}
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted">
+            <Search className="h-4 w-4 text-muted-foreground" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">Поиск по всем данным</span>
+            <span className="block text-xs text-muted-foreground">
+              Операции, клиенты, суммы — за любой месяц
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">Поиск по всем данным</span>
-              <span className="block text-xs text-muted-foreground">
-                Операции, клиенты, суммы — за любой месяц
-              </span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+        <button
+          className="flex w-full items-center gap-3 rounded-[20px] px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
+          onClick={async () => {
+            if (monthTotals.count === 0) {
+              const nom = MONTHS_NOM[now.getMonth()];
+              toast.error(`В ${nom}е пока нет операций`);
+              return;
+            }
+            const text = buildMonthReport(store.operations, store.clients, now.getFullYear(), now.getMonth() + 1);
+            const ok = await copyText(text);
+            if (ok) toast.success("Отчёт за месяц скопирован — вставьте куда нужно");
+            else toast.error("Не удалось скопировать отчёт");
+          }}
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted">
+            <ClipboardCopy className="h-4 w-4 text-muted-foreground" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">Отчёт за текущий месяц</span>
+            <span className="block text-xs text-muted-foreground">
+              Скопировать сводку текстом — бухгалтеру или в заметки
             </span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </button>
-          <button
-            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
-            onClick={async () => {
-              if (monthTotals.count === 0) {
-                const nom = MONTHS_NOM[now.getMonth()];
-                toast.error(`В ${nom}е пока нет операций`);
-                return;
-              }
-              const text = buildMonthReport(store.operations, store.clients, now.getFullYear(), now.getMonth() + 1);
-              const ok = await copyText(text);
-              if (ok) toast.success("Отчёт за месяц скопирован — вставьте куда нужно");
-              else toast.error("Не удалось скопировать отчёт");
-            }}
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">
-              <ClipboardCopy className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">Отчёт за текущий месяц</span>
-              <span className="block text-xs text-muted-foreground">
-                Скопировать сводку текстом — бухгалтеру или в заметки
-              </span>
-            </span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </button>
-        </CardContent>
-      </Card>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+      </div>
 
       {/* Pro */}
-      <Card className={pro ? "border-amber-300 dark:border-amber-800" : ""}>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Crown className="h-4 w-4 text-amber-500" />
-            {pro ? "Pro активирован" : "Гонорар Pro"}
-            {pro && (
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                полная версия
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {pro ? (
-            <div className="text-sm text-muted-foreground">
-              Лицензия на имя <span className="font-medium text-foreground">{store.license!.name}</span>.
-              Спасибо, что поддерживаете проект!
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Разовая оплата {PRICE.pro} ₽ (покупателям таблицы — {PRICE.earlyBird} ₽). Без подписки.
-                В бесплатной версии: до {FREE_LIMITS.operations} операций и {FREE_LIMITS.clients} клиентов.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="lic-name">Имя (как при оплате)</Label>
-                  <Input
-                    id="lic-name"
-                    value={keyName}
-                    onChange={(e) => setKeyName(e.target.value)}
-                    placeholder="Иван Петров"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="lic-key">Ключ</Label>
-                  <Input
-                    id="lic-key"
-                    value={keyValue}
-                    onChange={(e) => setKeyValue(e.target.value.toUpperCase())}
-                    placeholder="XXXX-XXXX-XXXX"
-                  />
-                </div>
-              </div>
-              <Button className="bg-amber-500 hover:bg-amber-600" onClick={activate} disabled={checking}>
-                {checking ? "Проверяю…" : "Активировать"}
-              </Button>
-            </>
+      <div
+        className={cn(
+          "rounded-[28px] p-4 shadow-soft",
+          pro ? "bg-card" : "bg-lemon-soft"
+        )}
+      >
+        <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
+          <Crown className="h-4 w-4" />
+          {pro ? "Pro активирован" : "Гонорар Pro"}
+          {pro && (
+            <span className="rounded-full bg-positive-soft px-2 py-0.5 text-[10px] font-semibold text-positive">
+              полная версия
+            </span>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        {pro ? (
+          <div className="text-sm text-muted-foreground">
+            Лицензия на имя <span className="font-medium text-foreground">{store.license!.name}</span>.
+            Спасибо, что поддерживаете проект!
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Разовая оплата {PRICE.pro} ₽ (покупателям таблицы — {PRICE.earlyBird} ₽). Без подписки.
+              В бесплатной версии: до {FREE_LIMITS.operations} операций и {FREE_LIMITS.clients} клиентов.
+            </p>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="space-y-1.5">
+                <Label htmlFor="lic-name">Имя (как при оплате)</Label>
+                <Input
+                  id="lic-name"
+                  value={keyName}
+                  onChange={(e) => setKeyName(e.target.value)}
+                  placeholder="Иван Петров"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lic-key">Ключ</Label>
+                <Input
+                  id="lic-key"
+                  value={keyValue}
+                  onChange={(e) => setKeyValue(e.target.value.toUpperCase())}
+                  placeholder="XXXX-XXXX-XXXX"
+                />
+              </div>
+            </div>
+            <Button className="rounded-full" onClick={activate} disabled={checking}>
+              {checking ? "Проверяю…" : "Активировать"}
+            </Button>
+          </>
+        )}
+      </div>
 
       {/* Синхронизация */}
       <SectionCard
@@ -462,19 +455,19 @@ export function SettingsView() {
         </div>
         {user ? (
           <>
-            <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-sm">
+            <div className="flex items-center justify-between rounded-2xl bg-muted px-3.5 py-2.5 text-sm">
               <span className="truncate">{user}</span>
-              <Button variant="ghost" size="sm" onClick={logout}>
+              <Button variant="ghost" size="sm" className="rounded-full" onClick={logout}>
                 <LogOut className="mr-1 h-3.5 w-3.5" />
                 Выйти
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={pushCloud} disabled={busy}>
+              <Button variant="outline" className="rounded-full" onClick={pushCloud} disabled={busy}>
                 <CloudUpload className="mr-1 h-4 w-4" />
                 В облако
               </Button>
-              <Button variant="outline" onClick={pullCloud} disabled={busy}>
+              <Button variant="outline" className="rounded-full" onClick={pullCloud} disabled={busy}>
                 <Download className="mr-1 h-4 w-4" />
                 Из облака
               </Button>
@@ -499,11 +492,11 @@ export function SettingsView() {
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => auth(false)} disabled={busy}>
+              <Button className="rounded-full" onClick={() => auth(false)} disabled={busy}>
                 <LogIn className="mr-1 h-4 w-4" />
                 Войти
               </Button>
-              <Button variant="outline" onClick={() => auth(true)} disabled={busy}>
+              <Button variant="outline" className="rounded-full" onClick={() => auth(true)} disabled={busy}>
                 Регистрация
               </Button>
             </div>
@@ -575,6 +568,7 @@ export function SettingsView() {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Button
             variant="outline"
+            className="rounded-full"
             disabled={!pro}
             onClick={() => {
               downloadFile(
@@ -588,12 +582,13 @@ export function SettingsView() {
             <Download className="mr-1 h-4 w-4" />
             Экспорт CSV {pro ? "" : "· Pro"}
           </Button>
-          <Button variant="outline" disabled={!pro} onClick={() => csvInputRef.current?.click()}>
+          <Button variant="outline" className="rounded-full" disabled={!pro} onClick={() => csvInputRef.current?.click()}>
             <FileUp className="mr-1 h-4 w-4" />
             Импорт CSV {pro ? "" : "· Pro"}
           </Button>
           <Button
             variant="outline"
+            className="rounded-full"
             onClick={() => {
               downloadFile(
                 `gonorar-backup-${new Date().toISOString().slice(0, 10)}.json`,
@@ -606,7 +601,7 @@ export function SettingsView() {
             <Download className="mr-1 h-4 w-4" />
             Бэкап JSON
           </Button>
-          <Button variant="outline" onClick={() => jsonInputRef.current?.click()}>
+          <Button variant="outline" className="rounded-full" onClick={() => jsonInputRef.current?.click()}>
             <FileUp className="mr-1 h-4 w-4" />
             Восстановить JSON
           </Button>
@@ -658,8 +653,13 @@ export function SettingsView() {
 
         <Button
           variant="outline"
+          className="rounded-full"
           onClick={() => {
             store.loadDemo();
+            // открываем месяц последних демо-данных
+            let max = "";
+            for (const o of useStore.getState().operations) if (o.date > max) max = o.date;
+            if (max) navigateLedger(Number(max.slice(0, 4)), Number(max.slice(5, 7)));
             toast.success("Загружены демо-данные из примера таблицы");
             setTab("ledger");
           }}
@@ -670,7 +670,7 @@ export function SettingsView() {
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="outline" className="text-rose-600 hover:text-rose-700">
+            <Button variant="outline" className="rounded-full text-destructive hover:text-destructive">
               <Eraser className="mr-1 h-4 w-4" />
               Очистить все данные
             </Button>
@@ -683,8 +683,9 @@ export function SettingsView() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Отмена</AlertDialogCancel>
+              <AlertDialogCancel className="rounded-full">Отмена</AlertDialogCancel>
               <AlertDialogAction
+                className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => {
                   store.clearAll();
                   toast.success("Данные очищены");
@@ -721,26 +722,22 @@ export function SettingsView() {
       </SectionCard>
 
       {/* О приложении */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">О приложении</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            «Гонорар» — учёт денег фрилансера без бухгалтерии: клиенты, предоплаты, источники
-            заказов и прибыль на одном экране.
-          </p>
-          <p>
-            Все данные хранятся в браузере вашего устройства и никуда не отправляются. Для
-            переноса используйте бэкап JSON или облачную синхронизацию.
-          </p>
-          <p>
-            Установите приложение на телефон: в меню браузера выберите «Добавить на главный
-            экран» — оно будет работать офлайн.
-          </p>
-          <p className="text-xs">Версия 1.0.0</p>
-        </CardContent>
-      </Card>
+      <div className="rounded-[28px] bg-card p-4 text-sm leading-relaxed text-muted-foreground shadow-soft">
+        <div className="mb-2 text-sm font-semibold text-foreground">О приложении</div>
+        <p>
+          «Гонорар» — учёт денег фрилансера без бухгалтерии: клиенты, предоплаты, источники
+          заказов и прибыль на одном экране.
+        </p>
+        <p className="mt-2">
+          Все данные хранятся в браузере вашего устройства и никуда не отправляются. Для
+          переноса используйте бэкап JSON или облачную синхронизацию.
+        </p>
+        <p className="mt-2">
+          Установите приложение на телефон: в меню браузера выберите «Добавить на главный
+          экран» — оно будет работать офлайн.
+        </p>
+        <p className="mt-2 text-xs">Версия 1.1.0</p>
+      </div>
 
       <div className="h-2" />
     </div>

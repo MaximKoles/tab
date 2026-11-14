@@ -44,8 +44,8 @@ function OperationResult({ op }: { op: Operation }) {
     <>
       <span
         className={cn(
-          "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold text-white",
-          income ? "bg-emerald-500" : "bg-rose-500"
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+          income ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
         )}
         aria-hidden
       >
@@ -59,8 +59,8 @@ function OperationResult({ op }: { op: Operation }) {
       </div>
       <div
         className={cn(
-          "shrink-0 text-sm font-semibold tabular-nums",
-          income ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+          "shrink-0 text-sm font-bold tabular-nums",
+          income ? "text-positive" : "text-foreground"
         )}
       >
         {income ? "+" : "−"}
@@ -156,7 +156,7 @@ export function GlobalSearch() {
                     onSelect={() => pickClient(s.client.id)}
                   >
                     <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-foreground"
                       aria-hidden
                     >
                       {initials(s.client.name) || <UserRound className="h-3.5 w-3.5" />}
@@ -168,7 +168,7 @@ export function GlobalSearch() {
                           (s.lastDate ? `платёж ${fmtDateFull(s.lastDate)}` : "нет платежей")}
                       </div>
                     </div>
-                    <div className="shrink-0 text-xs font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                    <div className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
                       {s.paidTotal > 0 ? fmtMoney(s.paidTotal) : ""}
                     </div>
                   </CommandItem>

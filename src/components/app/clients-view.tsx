@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,23 +15,23 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowDownUp, Check, Copy, HandCoins, Plus, Search, UserRound } from "lucide-react";
+import { ArrowDownUp, Check, Copy, HandCoins, Search, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
 import { clientStats, type ClientStats } from "@/lib/analytics";
-import { fmtMoney, fmtNum, fmtDate, fmtDateFull } from "@/lib/format";
+import { fmtMoney, fmtNum, fmtDate, fmtDateFull, ruPlural } from "@/lib/format";
 import { isPro, FREE_LIMITS } from "@/lib/limits";
 import type { Operation } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const AVATAR_CLASSES = [
-  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-  "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
-  "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-  "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+  "bg-muted text-foreground",
+  "bg-positive-soft text-positive",
+  "bg-caution-soft text-caution",
+  "bg-lemon-soft text-foreground",
+  "bg-[#e5e3ef] text-[#5d5876]",
+  "bg-[#e2eaef] text-[#4e6572]",
 ];
 
 function avatarClass(name: string): string {
@@ -116,7 +115,9 @@ export function ClientsView() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("paid");
   const [filter, setFilter] = useState<FilterKey>("all");
-  const [addOpen, setAddOpen] = useState(false);
+  // диалог «новый клиент» открывает «+» в шапке (ui-store)
+  const addOpen = useUi((s) => s.clientFormOpen);
+  const setAddOpen = (v: boolean) => (v ? useUi.getState().openClientForm() : useUi.getState().closeClientForm());
   const [form, setForm] = useState({ name: "", contact: "", note: "" });
   const [copied, setCopied] = useState(false);
 
@@ -218,28 +219,24 @@ export function ClientsView() {
 
   return (
     <div className="space-y-4">
-      {/* Поиск + добавление */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {/* Поиск */}
+      {clients.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Имя, контакт, заметка…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-9"
+            className="h-12 rounded-full border-border bg-card pl-10 shadow-soft"
             aria-label="Поиск клиентов"
           />
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4 sm:mr-1" />
-          <span className="hidden sm:inline">Клиент</span>
-        </Button>
-      </div>
+      )}
 
       {/* Фильтры и сортировка */}
       {clients.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Фильтр клиентов">
+        <div className="no-scrollbar -mx-5 flex items-center gap-2 overflow-x-auto px-5">
+          <div className="flex shrink-0 rounded-full border border-border bg-card p-1" role="group" aria-label="Фильтр клиентов">
             {(
               [
                 ["all", "Все"],
@@ -252,10 +249,10 @@ export function ClientsView() {
                 onClick={() => setFilter(key)}
                 aria-pressed={filter === key}
                 className={cn(
-                  "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  "whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
                   filter === key
-                    ? "bg-emerald-600 text-white"
-                    : "text-muted-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {label}
@@ -264,7 +261,7 @@ export function ClientsView() {
           </div>
           <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
             <SelectTrigger
-              className="ml-auto h-9 w-auto gap-1 text-xs"
+              className="h-10 w-auto shrink-0 gap-1 rounded-full border-border bg-card text-xs shadow-soft"
               aria-label="Сортировка клиентов"
             >
               <ArrowDownUp className="h-3.5 w-3.5 text-muted-foreground" />
@@ -283,23 +280,21 @@ export function ClientsView() {
 
       {/* Сводка */}
       {clients.length > 0 && (
-        <div className="grid grid-cols-3 divide-x divide-border rounded-xl border bg-muted/40 text-center">
-          <div className="px-2 py-2.5">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Клиентов</div>
-            <div className="text-sm font-bold tabular-nums">{clients.length}</div>
+        <div className="grid grid-cols-3 rounded-[28px] bg-card px-2 py-4 text-center shadow-soft">
+          <div>
+            <div className="text-[11px] text-muted-foreground">Клиентов</div>
+            <div className="mt-0.5 text-lg font-bold tabular-nums">{clients.length}</div>
           </div>
-          <div className="px-2 py-2.5">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Всего получено</div>
-            <div className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-              {fmtNum(totals.paid)}
-            </div>
+          <div className="border-x border-border">
+            <div className="text-[11px] text-muted-foreground">Получено</div>
+            <div className="mt-0.5 text-lg font-bold text-positive tabular-nums">{fmtNum(totals.paid)}</div>
           </div>
-          <div className="px-2 py-2.5">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Ждёт доплаты</div>
+          <div>
+            <div className="text-[11px] text-muted-foreground">Ждёт оплаты</div>
             <div
               className={cn(
-                "text-sm font-bold tabular-nums",
-                totals.debt > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                "mt-0.5 text-lg font-bold tabular-nums",
+                totals.debt > 0 ? "text-caution" : "text-muted-foreground"
               )}
             >
               {fmtNum(totals.debt)}
@@ -310,12 +305,12 @@ export function ClientsView() {
 
       {/* Список клиентов */}
       {clients.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Клиентов пока нет. Добавьте первого — или просто записывайте доходы с именем клиента,
-          он появится здесь автоматически.
+        <div className="rounded-[28px] border border-dashed border-foreground/20 p-8 text-center text-sm text-muted-foreground">
+          Клиентов пока нет. Добавьте первого кнопкой «+» — или просто записывайте доходы с именем
+          клиента, он появится здесь автоматически.
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-[28px] border border-dashed border-foreground/20 p-8 text-center text-sm text-muted-foreground">
           Под фильтр ничего не попало. Попробуйте другой фильтр или очистите поиск.
         </div>
       ) : (
@@ -323,52 +318,48 @@ export function ClientsView() {
           {filtered.map(({ client, paidTotal, opsCount, lastDate, debt }: ClientStats) => {
             const stale = daysSince(lastDate);
             return (
-              <Card
+              <div
                 key={client.id}
-                className="cursor-pointer p-3 transition-colors hover:bg-muted/50"
+                className="flex cursor-pointer items-center gap-3 rounded-[22px] bg-card p-3.5 shadow-soft transition-transform active:scale-[0.99]"
                 onClick={() => useUi.getState().openClient(client.id)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => e.key === "Enter" && useUi.getState().openClient(client.id)}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold",
-                      avatarClass(client.name)
+                <div
+                  className={cn(
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                    avatarClass(client.name)
+                  )}
+                >
+                  {initials(client.name) || <UserRound className="h-4 w-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[15px] font-semibold">{client.name}</span>
+                    {debt > 0 && (
+                      <span className="shrink-0 rounded-full bg-caution-soft px-2 py-0.5 text-[10px] font-semibold text-caution">
+                        долг
+                      </span>
                     )}
-                  >
-                    {initials(client.name) || <UserRound className="h-4 w-4" />}
+                    {stale !== null && stale >= STALE_DAYS && (
+                      <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        молчит
+                      </span>
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate font-medium">{client.name}</span>
-                      {debt > 0 && (
-                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                          долг {fmtMoney(debt)}
-                        </Badge>
-                      )}
-                      {stale !== null && stale >= STALE_DAYS && (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                          молчит {stale} дн.
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {client.contact || "—"}
-                      {lastDate && ` · был платёж ${fmtDate(lastDate)}`}
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                      {fmtMoney(paidTotal)}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {opsCount} плат.{opsCount > 0 && ` · ср. ${fmtNum(Math.round(paidTotal / opsCount))}`}
-                    </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {client.contact || "—"}
+                    {lastDate && ` · платёж ${fmtDate(lastDate)}`}
                   </div>
                 </div>
-              </Card>
+                <div className="shrink-0 text-right">
+                  <div className="text-[15px] font-bold tabular-nums">{fmtMoney(paidTotal)}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {opsCount} {ruPlural(opsCount, ["платёж", "платежа", "платежей"])}
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -410,7 +401,7 @@ export function ClientsView() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleAddClient} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleAddClient} className="rounded-full">
               Добавить
             </Button>
           </DialogFooter>
@@ -442,7 +433,7 @@ export function ClientsView() {
 
               {/* Контакт: ссылка + копирование */}
               {detail.client.contact && (
-                <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
+                <div className="flex items-center gap-2 rounded-2xl bg-muted px-3.5 py-2.5 text-sm">
                   <span className="min-w-0 flex-1 truncate">{detail.client.contact}</span>
                   <Button
                     variant="ghost"
@@ -451,10 +442,10 @@ export function ClientsView() {
                     aria-label="Скопировать контакт"
                     onClick={() => copyContact(detail.client.contact!)}
                   >
-                    {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                    {copied ? <Check className="h-4 w-4 text-positive" /> : <Copy className="h-4 w-4" />}
                   </Button>
                   {contactHref(detail.client.contact) && (
-                    <Button variant="outline" size="sm" className="h-8 shrink-0" asChild>
+                    <Button variant="outline" size="sm" className="h-8 shrink-0 rounded-full" asChild>
                       <a
                         href={contactHref(detail.client.contact)!}
                         target="_blank"
@@ -469,28 +460,26 @@ export function ClientsView() {
 
               {/* Статистика */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-muted p-3 text-center">
+                <div className="rounded-[18px] bg-muted p-3 text-center">
                   <div className="text-[11px] text-muted-foreground">Заплатил всего</div>
-                  <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                  <div className="text-sm font-bold text-positive tabular-nums">
                     {fmtMoney(detail.paidTotal)}
                   </div>
                 </div>
-                <div className="rounded-lg bg-muted p-3 text-center">
+                <div className="rounded-[18px] bg-muted p-3 text-center">
                   <div className="text-[11px] text-muted-foreground">Средний чек</div>
                   <div className="text-sm font-bold tabular-nums">{fmtMoney(avgCheck)}</div>
                 </div>
-                <div className="rounded-lg bg-muted p-3 text-center">
+                <div className="rounded-[18px] bg-muted p-3 text-center">
                   <div className="text-[11px] text-muted-foreground">Платежей</div>
                   <div className="text-sm font-bold tabular-nums">{detail.opsCount}</div>
                 </div>
-                <div className="rounded-lg bg-muted p-3 text-center">
+                <div className="rounded-[18px] bg-muted p-3 text-center">
                   <div className="text-[11px] text-muted-foreground">Долг</div>
                   <div
                     className={cn(
                       "text-sm font-bold tabular-nums",
-                      detail.debt > 0
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-muted-foreground"
+                      detail.debt > 0 ? "text-caution" : "text-muted-foreground"
                     )}
                   >
                     {fmtMoney(detail.debt)}
@@ -499,7 +488,7 @@ export function ClientsView() {
               </div>
 
               {staleDays !== null && staleDays >= STALE_DAYS && (
-                <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                <div className="rounded-2xl bg-caution-soft px-3.5 py-2.5 text-xs text-caution">
                   Последний платёж был {staleDays} дн. назад — повод напомнить о себе.
                 </div>
               )}
@@ -577,7 +566,7 @@ export function ClientsView() {
                       <div key={g.key}>
                         <div className="flex items-baseline justify-between px-1 py-1 text-xs">
                           <span className="font-medium text-muted-foreground">{g.label}</span>
-                          <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                          <span className="font-bold tabular-nums text-positive">
                             {fmtMoney(g.total)}
                           </span>
                         </div>
@@ -585,25 +574,25 @@ export function ClientsView() {
                           {g.ops.map((op) => (
                             <div
                               key={op.id}
-                              className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2 text-sm"
+                              className="flex items-center justify-between rounded-2xl bg-muted/70 px-3.5 py-2.5 text-sm"
                             >
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5 truncate">
                                   {op.type || "Платёж"}
                                   {op.part === "prepay" && (
-                                    <Badge className="bg-amber-100 px-1.5 py-0 text-[10px] text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                                    <span className="shrink-0 rounded-full bg-lemon-soft px-2 py-0.5 text-[10px] font-semibold">
                                       предоплата
-                                    </Badge>
+                                    </span>
                                   )}
                                   {op.part === "rest" && (
-                                    <Badge className="bg-sky-100 px-1.5 py-0 text-[10px] text-sky-800 dark:bg-sky-900 dark:text-sky-200">
+                                    <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                                       остаток
-                                    </Badge>
+                                    </span>
                                   )}
                                 </div>
                                 <div className="text-xs text-muted-foreground">{fmtDate(op.date)}</div>
                               </div>
-                              <div className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                              <div className="font-bold text-positive tabular-nums">
                                 +{fmtMoney(op.amount)}
                               </div>
                             </div>
@@ -618,7 +607,7 @@ export function ClientsView() {
               <DialogFooter className="flex-row gap-2">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="outline" className="text-rose-600 hover:text-rose-700">
+                    <Button variant="outline" className="rounded-full text-destructive hover:text-destructive">
                       Удалить
                     </Button>
                   </AlertDialogTrigger>
@@ -630,8 +619,9 @@ export function ClientsView() {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Отмена</AlertDialogCancel>
+                      <AlertDialogCancel className="rounded-full">Отмена</AlertDialogCancel>
                       <AlertDialogAction
+                        className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         onClick={() => {
                           deleteClient(detail.client.id);
                           closeClient();
@@ -644,7 +634,7 @@ export function ClientsView() {
                   </AlertDialogContent>
                 </AlertDialog>
                 <Button
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  className="flex-1 rounded-full"
                   onClick={() => recordPayment(detail.client.id)}
                 >
                   <HandCoins className="mr-1 h-4 w-4" />

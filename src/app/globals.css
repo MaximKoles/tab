@@ -25,6 +25,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -37,79 +38,104 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-caution: var(--caution);
+  --color-caution-soft: var(--caution-soft);
+  --color-lemon: var(--lemon);
+  --color-lemon-soft: var(--lemon-soft);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 6px);
 }
 
+/*
+  Палитра «тихого банка»: тёплый крем, чернила, белые карточки.
+  Положительные деньги — приглушённый зелёный, тревожные — терракота,
+  акцентная подсветка — лимон. Никаких градиентов.
+*/
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 1.25rem;
+  --background: #f1efe8;
+  --foreground: #1c1b17;
+  --card: #ffffff;
+  --card-foreground: #1c1b17;
+  --popover: #ffffff;
+  --popover-foreground: #1c1b17;
+  --primary: #1c1b17;
+  --primary-foreground: #ffffff;
+  --secondary: #e9e6dd;
+  --secondary-foreground: #1c1b17;
+  --muted: #e9e6dd;
+  --muted-foreground: #87816f;
+  --accent: #e9e6dd;
+  --accent-foreground: #1c1b17;
+  --destructive: #b3472e;
+  --destructive-foreground: #ffffff;
+  --border: #e3e0d6;
+  --input: #d8d4c8;
+  --ring: #a9a294;
+  --positive: #1f7a4d;
+  --positive-soft: #e3efe6;
+  --caution: #bf5b33;
+  --caution-soft: #f5e7dd;
+  --lemon: #e8d34f;
+  --lemon-soft: #f7edbe;
+  --chart-1: #1c1b17;
+  --chart-2: #bf5b33;
+  --chart-3: #5e7d5a;
+  --chart-4: #d9b93b;
+  --chart-5: #8c8271;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1b17;
+  --sidebar-primary: #1c1b17;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9e6dd;
+  --sidebar-accent-foreground: #1c1b17;
+  --sidebar-border: #e3e0d6;
+  --sidebar-ring: #a9a294;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #141310;
+  --foreground: #f0eee6;
+  --card: #1e1c18;
+  --card-foreground: #f0eee6;
+  --popover: #1e1c18;
+  --popover-foreground: #f0eee6;
+  --primary: #f0eee6;
+  --primary-foreground: #141310;
+  --secondary: #2a2823;
+  --secondary-foreground: #f0eee6;
+  --muted: #2a2823;
+  --muted-foreground: #a39d8e;
+  --accent: #2a2823;
+  --accent-foreground: #f0eee6;
+  --destructive: #d97a55;
+  --destructive-foreground: #141310;
+  --border: #302d27;
+  --input: #3a362e;
+  --ring: #6e6a5e;
+  --positive: #7fc49b;
+  --positive-soft: #22352a;
+  --caution: #e3906c;
+  --caution-soft: #3a2c24;
+  --lemon: #e8d34f;
+  --lemon-soft: #383318;
+  --chart-1: #f0eee6;
+  --chart-2: #e3906c;
+  --chart-3: #8fae8b;
+  --chart-4: #e8d34f;
+  --chart-5: #a39d8e;
+  --sidebar: #1e1c18;
+  --sidebar-foreground: #f0eee6;
+  --sidebar-primary: #f0eee6;
+  --sidebar-primary-foreground: #141310;
+  --sidebar-accent: #2a2823;
+  --sidebar-accent-foreground: #f0eee6;
+  --sidebar-border: #302d27;
+  --sidebar-ring: #6e6a5e;
 }
 
 @layer base {
@@ -117,6 +143,29 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "tnum" off;
+  }
+  ::selection {
+    background: var(--lemon-soft);
+    color: var(--foreground);
+  }
+}
+
+@layer utilities {
+  /* полоса без скроллбара (месяцы, чипы) */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* мягкая тень карточек, как в референсе */
+  .shadow-soft {
+    box-shadow: 0 1px 2px rgb(28 27 23 / 0.04), 0 8px 24px -12px rgb(28 27 23 / 0.1);
+  }
+  .dark .shadow-soft {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
   }
 }
