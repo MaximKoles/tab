@@ -19,7 +19,7 @@ import { ArrowDownUp, Check, Copy, HandCoins, Search, UserRound } from "lucide-r
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
-import { clientStats, type ClientStats } from "@/lib/analytics";
+import { clientStats, openDeals, type ClientStats } from "@/lib/analytics";
 import { fmtMoney, fmtNum, fmtDate, fmtDateFull, ruPlural } from "@/lib/format";
 import { isPro, FREE_LIMITS } from "@/lib/limits";
 import type { Operation } from "@/lib/types";
@@ -180,10 +180,16 @@ export function ClientsView() {
   const avgCheck = detail && detail.opsCount > 0 ? Math.round(detail.paidTotal / detail.opsCount) : 0;
   const staleDays = detail ? daysSince(detail.lastDate) : null;
 
-  // Кнопка «Записать платёж» закрывает диалог и открывает шторку ввода
+  // Кнопка «Записать платёж» открывает шторку ввода; если у клиента есть
+  // незакрытая сделка — сразу подставляем остаток, чтобы не искать вручную
   function recordPayment(clientId: string) {
     closeClient();
-    openAdd({ kind: "income", clientId });
+    const deal = openDeals(operations).find((d) => d.ops.some((o) => o.clientId === clientId));
+    if (deal) {
+      openAdd({ kind: "income", clientId, part: "rest", dealId: deal.dealId, amount: deal.remaining });
+    } else {
+      openAdd({ kind: "income", clientId });
+    }
   }
 
   function handleAddClient() {

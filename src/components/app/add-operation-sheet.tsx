@@ -44,6 +44,27 @@ const emptyForm = (): FormState => ({
   note: "",
 });
 
+/** Подсказка под суммой сделки: что останется после этой оплаты */
+function DealHint({ dealTotal, amount, hasAmount }: { dealTotal: number; amount: number; hasAmount: boolean }) {
+  if (dealTotal <= 0) return null;
+  if (!hasAmount) {
+    return <p className="px-1 text-xs text-muted-foreground">Введите оплату — подскажем остаток сделки</p>;
+  }
+  const remaining = dealTotal - amount;
+  if (remaining > 0) {
+    return (
+      <p className="px-1 text-xs text-muted-foreground tabular-nums">
+        После этой оплаты останется{" "}
+        <span className="font-semibold text-caution">{fmtMoney(remaining)}</span>
+      </p>
+    );
+  }
+  if (remaining === 0) {
+    return <p className="px-1 text-xs font-medium text-positive">Сделка будет закрыта полностью</p>;
+  }
+  return <p className="px-1 text-xs font-medium text-caution">Оплата больше суммы сделки — проверьте числа</p>;
+}
+
 export function AddOperationSheet() {
   const { addSheet, closeAdd } = useUi();
   const { operations, clients, categories, license } = useStore();
@@ -54,6 +75,10 @@ export function AddOperationSheet() {
 
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
+  // двухшаговое удаление: первый тап просит подтверждения, второй — удаляет
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  // подсветка поля суммы после неудачной попытки сохранения
+  const [amountError, setAmountError] = useState(false);
 
   const editing = useMemo(
     () => (addSheet.editId ? operations.find((o) => o.id === addSheet.editId) ?? null : null),
@@ -109,6 +134,14 @@ export function AddOperationSheet() {
     }
   }, [addSheet.open, addSheet.prefill, editing, clients, operations]);
 
+  // Сброс подтверждения удаления и ошибки суммы при каждом открытии шторки
+  useEffect(() => {
+    if (addSheet.open) {
+      setConfirmDelete(false);
+      setAmountError(false);
+    }
+  }, [addSheet.open]);
+
   const patch = (p: Partial<FormState>) => setForm((f) => ({ ...f, ...p }));
 
   // Открытые сделки выбранного клиента (для статуса «Остаток»)
@@ -132,6 +165,13 @@ export function AddOperationSheet() {
     }
   }, [form.dealId, form.part]);
 
+  // Кнопка «Удалить?» возвращается в исходное состояние сама, если передумали
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const t = setTimeout(() => setConfirmDelete(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirmDelete]);
+
   const income = form.kind === "income";
 
   const amountNum = parseFloat(form.amount.replace(/\s/g, "").replace(",", "."));
@@ -144,6 +184,8 @@ export function AddOperationSheet() {
 
   async function handleSave() {
     if (!amountValid) {
+      setAmountError(true);
+      document.getElementById("op-amount")?.focus();
       toast.error("Укажите сумму больше нуля");
       return;
     }
@@ -240,14 +282,25 @@ export function AddOperationSheet() {
           income ? `Доход ${fmtMoney(amountNum)} записан` : `Расход ${fmtMoney(amountNum)} записан`
         );
       }
+      navigateToOpMonth();
       closeAdd();
     } finally {
       setSaving(false);
     }
   }
 
+  // Автопереход к месяцу сохранённой операции — запись всегда видна на экране
+  function navigateToOpMonth() {
+    const [ny, nm] = form.date.split("-").map(Number); // yyyy-mm-dd → год, месяц
+    if (ny && nm) useUi.getState().navigateLedger(ny, nm);
+  }
+
   function handleDelete() {
     if (!editing) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     deleteOperation(editing.id);
     toast.success("Операция удалена");
     closeAdd();
@@ -291,8 +344,15 @@ export function AddOperationSheet() {
                   placeholder="0"
                   autoFocus
                   value={form.amount}
-                  onChange={(e) => patch({ amount: e.target.value })}
-                  className="h-11 text-lg font-semibold"
+                  onChange={(e) => {
+                    patch({ amount: e.target.value });
+                    if (amountError) setAmountError(false);
+                  }}
+                  className={cn(
+                    "h-11 text-lg font-semibold",
+                    amountError && "border-destructive ring-destructive/30 focus-visible:ring-destructive/40"
+                  )}
+                  aria-invalid={amountError}
                 />
               </div>
               <div className="space-y-1.5">
@@ -419,6 +479,11 @@ export function AddOperationSheet() {
                             ))}
                           </SelectContent>
                         </Select>
+                        {selectedDeal && (
+                          <p className="px-1 text-xs text-muted-foreground tabular-nums">
+                            Сделка на {fmtMoney(selectedDeal.total)} · записано {fmtMoney(selectedDeal.paid)}
+                          </p>
+                        )}
                       </div>
                     )}
                     {!selectedDeal && (
@@ -430,6 +495,11 @@ export function AddOperationSheet() {
                           placeholder="Сколько стоит заказ целиком"
                           value={form.dealTotal}
                           onChange={(e) => patch({ dealTotal: e.target.value })}
+                        />
+                        <DealHint
+                          dealTotal={parseFloat(form.dealTotal.replace(/\s/g, "").replace(",", ".")) || 0}
+                          amount={amountValid ? amountNum : 0}
+                          hasAmount={amountValid}
                         />
                       </div>
                     )}
@@ -452,13 +522,15 @@ export function AddOperationSheet() {
           <div className="mt-4 flex gap-2">
             {editing && (
               <Button
-                variant="outline"
-                size="icon"
-                className="h-12 w-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+                variant={confirmDelete ? "destructive" : "outline"}
+                className={cn(
+                  "h-12 shrink-0 rounded-full font-semibold transition-all",
+                  confirmDelete ? "w-auto px-4" : "w-12"
+                )}
                 onClick={handleDelete}
-                aria-label="Удалить операцию"
+                aria-label={confirmDelete ? "Подтвердить удаление" : "Удалить операцию"}
               >
-                <Trash2 className="h-4 w-4" />
+                {confirmDelete ? "Удалить?" : <Trash2 className="h-4 w-4" />}
               </Button>
             )}
             <Button

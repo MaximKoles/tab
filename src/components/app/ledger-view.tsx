@@ -244,24 +244,44 @@ export function LedgerView() {
 
       {/* ─── Hero-карточка месяца: одна главная сумма ─── */}
       <div className="rounded-[28px] bg-card p-5 shadow-soft">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 text-sm text-muted-foreground">
             Прибыль · {MONTHS_NOM[m - 1][0].toUpperCase() + MONTHS_NOM[m - 1].slice(1)}
             {!isCurrentMonth && ` ${y}`}
           </span>
-          {trend && (
-            <span
-              className={cn(
-                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                trend.up ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
-              )}
-            >
-              {trend.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-              {trend.text}
-            </span>
-          )}
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            {!isCurrentMonth && (
+              <button
+                onClick={() => setMonth({ y: now.getFullYear(), m: now.getMonth() + 1 })}
+                className="flex h-7 shrink-0 items-center rounded-full bg-muted px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Вернуться к текущему месяцу"
+              >
+                К текущему
+              </button>
+            )}
+            {trend && (
+              <span
+                className={cn(
+                  "flex min-w-0 items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                  trend.up ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
+                )}
+              >
+                {trend.up ? (
+                  <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+                )}
+                <span className="truncate">{trend.text}</span>
+              </span>
+            )}
+          </span>
         </div>
-        <div className="mt-1 text-[38px] font-bold leading-tight tracking-tight tabular-nums">
+        <div
+          className={cn(
+            "mt-1 text-[38px] font-bold leading-tight tracking-tight tabular-nums",
+            totals.profit < 0 && "text-caution"
+          )}
+        >
           {fmtNum(totals.profit)}
           <span className="ml-1 text-2xl font-semibold text-muted-foreground">₽</span>
         </div>
@@ -388,14 +408,20 @@ export function LedgerView() {
 
       {/* ─── Список операций: колонка дней + карточки ─── */}
       {groups.length === 0 ? (
-        <div className="rounded-[28px] border border-dashed border-foreground/20 p-8 text-center">
+        <button
+          onClick={() => openAdd()}
+          className="block w-full rounded-[28px] border border-dashed border-foreground/20 p-8 text-center transition-colors hover:bg-card"
+          aria-label="Записать первую операцию за этот месяц"
+        >
           <Wallet className="mx-auto h-9 w-9 text-muted-foreground/60" />
           <p className="mt-3 text-sm text-muted-foreground">
-            В {MONTHS_NOM[m - 1]}е пока пусто.
-            <br />
-            Нажмите «+», чтобы записать первую операцию.
+            В {MONTHS_NOM[m - 1]}е пока пусто
           </p>
-        </div>
+          <span className="mt-4 inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground">
+            <Plus className="mr-1.5 h-4 w-4" />
+            Записать операцию
+          </span>
+        </button>
       ) : (
         <div className="space-y-5">
           {groups.map(([date, ops]) => {
