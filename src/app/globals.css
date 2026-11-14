@@ -150,6 +150,11 @@
     background: var(--lemon-soft);
     color: var(--foreground);
   }
+  /* тосты всплывают над плавающим таб-баром, а не поверх контента */
+  [data-sonner-toaster][data-y-position="bottom"] {
+    --offset-bottom: calc(env(safe-area-inset-bottom) + 84px) !important;
+    --mobile-offset-bottom: calc(env(safe-area-inset-bottom) + 84px) !important;
+  }
 }
 
 @layer utilities {

@@ -51,7 +51,8 @@ export default function RootLayout({
       <body className={`${inter.variable} antialiased bg-background text-foreground`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
-          <Toaster richColors position="top-center" />
+          {/* тосты снизу: не перекрывают заголовок и полосу месяцев */}
+          <Toaster richColors position="bottom-center" />
         </ThemeProvider>
       </body>
     </html>
