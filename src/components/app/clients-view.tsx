@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,7 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowDownUp, Check, Copy, HandCoins, Search, UserRound } from "lucide-react";
+import { ArrowDownUp, Check, Copy, HandCoins, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
@@ -24,31 +25,6 @@ import { fmtMoney, fmtNum, fmtDate, fmtDateFull, ruPlural } from "@/lib/format";
 import { isPro, FREE_LIMITS } from "@/lib/limits";
 import type { Operation } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const AVATAR_CLASSES = [
-  "bg-muted text-foreground",
-  "bg-positive-soft text-positive",
-  "bg-caution-soft text-caution",
-  "bg-lemon-soft text-foreground",
-  "bg-[#e5e3ef] text-[#5d5876]",
-  "bg-[#e2eaef] text-[#4e6572]",
-];
-
-function avatarClass(name: string): string {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATAR_CLASSES[h % AVATAR_CLASSES.length];
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 /** Контакт в ссылку: @ник → Telegram, телефон → tel:, почта → mailto:, url → ссылка */
 function contactHref(contact: string): string | null {
@@ -332,14 +308,6 @@ export function ClientsView() {
                 tabIndex={0}
                 onKeyDown={(e) => e.key === "Enter" && useUi.getState().openClient(client.id)}
               >
-                <div
-                  className={cn(
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold",
-                    avatarClass(client.name)
-                  )}
-                >
-                  {initials(client.name) || <UserRound className="h-4 w-4" />}
-                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-[15px] font-semibold">{client.name}</span>
@@ -398,11 +366,18 @@ export function ClientsView() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cl-note">Заметка</Label>
-              <Input
+              <Textarea
                 id="cl-note"
+                rows={2}
+                className="min-h-[64px] resize-none"
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
                 placeholder="Например: постоянный, любит созвоны"
+                onInput={(e) => {
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = `${el.scrollHeight}px`;
+                }}
               />
             </div>
           </div>
@@ -420,18 +395,7 @@ export function ClientsView() {
           {detail && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                      avatarClass(detail.client.name)
-                    )}
-                    aria-hidden
-                  >
-                    {initials(detail.client.name) || <UserRound className="h-4 w-4" />}
-                  </span>
-                  {detail.client.name}
-                </DialogTitle>
+                <DialogTitle>{detail.client.name}</DialogTitle>
                 <DialogDescription>
                   Клиент с {fmtDateFull(detail.client.createdAt.slice(0, 10))}
                 </DialogDescription>
@@ -532,8 +496,10 @@ export function ClientsView() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="cl-edit-note">Заметка</Label>
-                  <Input
+                  <Textarea
                     id="cl-edit-note"
+                    rows={2}
+                    className="min-h-[64px] resize-none"
                     defaultValue={detail.client.note ?? ""}
                     onBlur={(e) => {
                       const v = e.target.value.trim();
@@ -543,6 +509,11 @@ export function ClientsView() {
                       }
                     }}
                     placeholder="Например: постоянный, платит по пятницам"
+                    onInput={(e) => {
+                      const el = e.currentTarget;
+                      el.style.height = "auto";
+                      el.style.height = `${el.scrollHeight}px`;
+                    }}
                   />
                 </div>
               </div>
@@ -629,9 +600,22 @@ export function ClientsView() {
                       <AlertDialogAction
                         className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         onClick={() => {
-                          deleteClient(detail.client.id);
+                          const target = detail.client;
+                          const linkedIds = operations
+                            .filter((o) => o.clientId === target.id)
+                            .map((o) => o.id);
+                          deleteClient(target.id);
                           closeClient();
-                          toast.success("Клиент удалён");
+                          toast.success("Клиент удалён", {
+                            duration: 8000,
+                            action: {
+                              label: "Вернуть",
+                              onClick: () => {
+                                useStore.getState().restoreClient(target, linkedIds);
+                                toast.success("Клиент восстановлен");
+                              },
+                            },
+                          });
                         }}
                       >
                         Удалить

@@ -30,10 +30,14 @@ interface AppState {
   addOperation: (op: Omit<Operation, "id" | "createdAt" | "updatedAt">) => Operation;
   updateOperation: (id: string, patch: Partial<Operation>) => void;
   deleteOperation: (id: string) => void;
+  /** Отмена удаления: возвращает операцию с тем же id и связями по сделке */
+  restoreOperation: (op: Operation) => void;
 
   addClient: (c: Omit<Client, "id" | "createdAt">) => Client;
   updateClient: (id: string, patch: Partial<Client>) => void;
   deleteClient: (id: string) => void;
+  /** Отмена удаления: возвращает клиента и перепривязывает его операции */
+  restoreClient: (c: Client, opIds: string[]) => void;
 
   renameType: (oldV: string, newV: string) => void;
   addIncomeType: (v: string) => void;
@@ -42,6 +46,8 @@ interface AppState {
   removeExpenseType: (v: string) => void;
   addSource: (v: string) => void;
   removeSource: (v: string) => void;
+  /** Отмена удаления категории: возвращает значение на прежнюю позицию */
+  restoreCategory: (kind: "incomeTypes" | "expenseTypes" | "sources", value: string, index: number) => void;
 
   setSettings: (patch: Partial<Settings>) => void;
   setLicense: (l: License) => void;
@@ -90,6 +96,9 @@ export const useStore = create<AppState>()(
       deleteOperation: (id) =>
         set((s) => ({ operations: s.operations.filter((o) => o.id !== id) })),
 
+      restoreOperation: (op) =>
+        set((s) => ({ operations: [op, ...s.operations.filter((o) => o.id !== op.id)] })),
+
       addClient: (c) => {
         const client: Client = { ...c, id: crypto.randomUUID(), createdAt: nowISO() };
         set((s) => ({ clients: [client, ...s.clients] }));
@@ -106,6 +115,14 @@ export const useStore = create<AppState>()(
             o.clientId === id
               ? { ...o, clientId: undefined, clientName: o.clientName ?? "Без имени" }
               : o
+          ),
+        })),
+
+      restoreClient: (c, opIds) =>
+        set((s) => ({
+          clients: [c, ...s.clients.filter((x) => x.id !== c.id)],
+          operations: s.operations.map((o) =>
+            opIds.includes(o.id) ? { ...o, clientId: c.id } : o
           ),
         })),
 
@@ -150,6 +167,13 @@ export const useStore = create<AppState>()(
         set((s) => ({
           categories: { ...s.categories, sources: s.categories.sources.filter((t) => t !== v) },
         })),
+
+      restoreCategory: (kind, value, index) =>
+        set((s) => {
+          const list = [...s.categories[kind]];
+          if (!list.includes(value)) list.splice(Math.min(Math.max(index, 0), list.length), 0, value);
+          return { categories: { ...s.categories, [kind]: list } };
+        }),
 
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
       setLicense: (l) => set({ license: l }),

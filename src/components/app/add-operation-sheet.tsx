@@ -4,16 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
 import { todayISO, fmtMoney } from "@/lib/format";
 import { isPro, FREE_LIMITS } from "@/lib/limits";
 import { openDeals } from "@/lib/analytics";
-import type { OpKind, PayPart } from "@/lib/types";
+import type { OpKind, Operation, PayPart } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface FormState {
@@ -71,6 +72,7 @@ export function AddOperationSheet() {
   const addOperation = useStore((s) => s.addOperation);
   const updateOperation = useStore((s) => s.updateOperation);
   const deleteOperation = useStore((s) => s.deleteOperation);
+  const restoreOperation = useStore((s) => s.restoreOperation);
   const addClient = useStore((s) => s.addClient);
 
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -173,6 +175,34 @@ export function AddOperationSheet() {
   }, [confirmDelete]);
 
   const income = form.kind === "income";
+
+  /* Последний доход — для кнопки повтора внутри формы */
+  const lastIncome = useMemo(() => {
+    let best: Operation | null = null;
+    for (const op of operations) {
+      if (op.kind !== "income") continue;
+      if (!best || (op.date + op.createdAt).localeCompare(best.date + best.createdAt) > 0) best = op;
+    }
+    return best;
+  }, [operations]);
+
+  const repeatLast = () => {
+    if (!lastIncome) return;
+    const client = lastIncome.clientId ? clients.find((c) => c.id === lastIncome.clientId) : undefined;
+    patch({
+      kind: "income",
+      amount: String(lastIncome.amount),
+      type: lastIncome.type ?? "",
+      source: lastIncome.source ?? "",
+      clientName: client?.name ?? lastIncome.clientName ?? "",
+      contact: "",
+      part: "single",
+      dealTotal: "",
+      dealId: "",
+      note: "",
+    });
+    setAmountError(false);
+  };
 
   const amountNum = parseFloat(form.amount.replace(/\s/g, "").replace(",", "."));
   const amountValid = !isNaN(amountNum) && amountNum > 0;
@@ -301,8 +331,18 @@ export function AddOperationSheet() {
       setConfirmDelete(true);
       return;
     }
+    const op = editing;
     deleteOperation(editing.id);
-    toast.success("Операция удалена");
+    toast.success("Операция удалена", {
+      duration: 8000,
+      action: {
+        label: "Вернуть",
+        onClick: () => {
+          restoreOperation(op);
+          toast.success("Операция восстановлена");
+        },
+      },
+    });
     closeAdd();
   }
 
@@ -480,9 +520,23 @@ export function AddOperationSheet() {
                           </SelectContent>
                         </Select>
                         {selectedDeal && (
-                          <p className="px-1 text-xs text-muted-foreground tabular-nums">
-                            Сделка на {fmtMoney(selectedDeal.total)} · записано {fmtMoney(selectedDeal.paid)}
-                          </p>
+                          amountValid && amountNum >= selectedDeal.remaining ? (
+                            <p className="px-1 text-xs font-medium text-positive">
+                              Эта оплата закроет сделку полностью
+                            </p>
+                          ) : (
+                            <p className="px-1 text-xs text-muted-foreground tabular-nums">
+                              Сделка на {fmtMoney(selectedDeal.total)} · записано {fmtMoney(selectedDeal.paid)}
+                              {amountValid && (
+                                <>
+                                  , останется{" "}
+                                  <span className="font-semibold text-caution">
+                                    {fmtMoney(selectedDeal.remaining - amountNum)}
+                                  </span>
+                                </>
+                              )}
+                            </p>
+                          )
                         )}
                       </div>
                     )}
@@ -510,16 +564,35 @@ export function AddOperationSheet() {
 
             <div className="space-y-1.5">
               <Label htmlFor="op-note">Комментарий</Label>
-              <Input
+              <Textarea
                 id="op-note"
+                rows={2}
+                className="min-h-[64px] resize-none"
                 placeholder="Детали, номер заказа…"
                 value={form.note}
                 onChange={(e) => patch({ note: e.target.value })}
+                onInput={(e) => {
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = `${el.scrollHeight}px`;
+                }}
               />
             </div>
           </div>
 
           <div className="mt-4 flex gap-2">
+            {!editing && lastIncome && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-12 w-12 shrink-0 rounded-full"
+                onClick={repeatLast}
+                aria-label="Повторить последний доход"
+                title="Повторить последний доход"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
             {editing && (
               <Button
                 variant={confirmDelete ? "destructive" : "outline"}

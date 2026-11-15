@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Lock, Plus, TrendingDown, TrendingUp, Trophy, Wallet, Zap } from "lucide-react";
+import { ChevronRight, Lock, Plus, TrendingDown, TrendingUp, Trophy, Wallet } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
 import { fmtMoney, fmtNum, fmtCompact, MONTHS_NOM, MONTHS_SHORT, WEEKDAYS_SHORT, ruPlural } from "@/lib/format";
@@ -32,28 +32,18 @@ function monthIncome(operations: Operation[], y: number, m: number): number {
 function OperationRow({ op }: { op: Operation }) {
   const openEdit = useUi((s) => s.openEdit);
   const income = op.kind === "income";
-  const letter = (op.type?.trim()?.[0] ?? (income ? "+" : "−")).toUpperCase();
   return (
     <button
       onClick={() => openEdit(op.id)}
-      className="flex w-full items-center gap-2.5 rounded-[22px] bg-card px-2.5 py-3 text-left shadow-soft transition-transform active:scale-[0.99]"
+      className="flex w-full items-center gap-3 rounded-[22px] bg-card px-3.5 py-2.5 text-left shadow-soft transition-transform active:scale-[0.99]"
     >
-      <span
-        className={cn(
-          "flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
-          income ? "bg-positive-soft text-positive" : "bg-caution-soft text-caution"
-        )}
-        aria-hidden
-      >
-        {letter}
-      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-semibold">{op.type || "Без категории"}</span>
         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
           {[op.clientName, op.source].filter(Boolean).join(" · ") || "—"}
         </span>
         {(op.part === "prepay" || op.part === "rest") && (
-          <span className="mt-1.5 flex">
+          <span className="mt-1 flex">
             {op.part === "prepay" ? (
               <span className="rounded-full bg-lemon-soft px-2 py-0.5 text-[10px] font-semibold">предоплата</span>
             ) : (
@@ -176,26 +166,7 @@ export function LedgerView() {
     return null;
   }, [totals.income, prevIncome, prevMonth]);
 
-  /* Последний доход — для быстрого повтора */
-  const lastIncome = useMemo(() => {
-    let best: Operation | null = null;
-    for (const op of operations) {
-      if (op.kind !== "income") continue;
-      if (!best || (op.date + op.createdAt).localeCompare(best.date + best.createdAt) > 0) best = op;
-    }
-    return best;
-  }, [operations]);
-  const openRepeat = () => {
-    if (!lastIncome) return;
-    openAdd({
-      kind: "income",
-      clientId: lastIncome.clientId,
-      amount: lastIncome.amount,
-      type: lastIncome.type,
-      source: lastIncome.source,
-      part: "single",
-    });
-  };
+  /* Последний доход — больше не используется: повтор переехал в шторку ввода */
 
   return (
     <div className="space-y-4">
@@ -242,11 +213,11 @@ export function LedgerView() {
         })}
       </div>
 
-      {/* ─── Hero-карточка месяца: одна главная сумма ─── */}
-      <div className="rounded-[28px] bg-card p-5 shadow-soft">
+      {/* ─── Hero-карточка месяца: Прибыль · Доход · Расход в одну строку ─── */}
+      <div className="rounded-[28px] bg-card p-4 shadow-soft">
         <div className="flex items-center gap-2">
           <span className="min-w-0 text-sm text-muted-foreground">
-            Прибыль · {MONTHS_NOM[m - 1][0].toUpperCase() + MONTHS_NOM[m - 1].slice(1)}
+            {MONTHS_NOM[m - 1][0].toUpperCase() + MONTHS_NOM[m - 1].slice(1)}
             {!isCurrentMonth && ` ${y}`}
           </span>
           <span className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -276,51 +247,43 @@ export function LedgerView() {
             )}
           </span>
         </div>
-        <div
-          className={cn(
-            "mt-1 text-[38px] font-bold leading-tight tracking-tight tabular-nums",
-            totals.profit < 0 && "text-caution"
-          )}
-        >
-          {fmtNum(totals.profit)}
-          <span className="ml-1 text-2xl font-semibold text-muted-foreground">₽</span>
-        </div>
-        <div className="mt-4 flex gap-8 border-t border-border pt-3.5">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-positive" />
+        <div className="mt-3 flex items-stretch">
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] text-muted-foreground">Прибыль</div>
+            <div
+              className={cn(
+                "mt-0.5 truncate text-[17px] font-bold tabular-nums",
+                totals.profit < 0 && "text-caution"
+              )}
+            >
+              {fmtNum(totals.profit)} ₽
+            </div>
+          </div>
+          <div className="min-w-0 flex-1 border-l border-border pl-3">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
               Доход
             </div>
-            <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmtNum(totals.income)} ₽</div>
+            <div className="mt-0.5 truncate text-[17px] font-semibold tabular-nums">{fmtNum(totals.income)} ₽</div>
           </div>
-          <div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-caution" />
+          <div className="min-w-0 flex-1 border-l border-border pl-3">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-caution" />
               Расход
             </div>
-            <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmtNum(totals.expense)} ₽</div>
+            <div className="mt-0.5 truncate text-[17px] font-semibold tabular-nums">{fmtNum(totals.expense)} ₽</div>
           </div>
         </div>
       </div>
 
-      {/* ─── Быстрый повтор последнего дохода ─── */}
-      {lastIncome && (
-        <button
-          onClick={openRepeat}
-          className="flex w-full items-center gap-2.5 rounded-full border border-dashed border-foreground/25 px-4 py-3 text-left transition-colors hover:bg-card"
-        >
-          <Zap className="h-4 w-4 shrink-0 text-caution" />
-          <span className="min-w-0 flex-1 truncate text-sm">
-            <span className="font-semibold">Повторить</span>
-            <span className="ml-1.5 text-muted-foreground">
-              {[lastIncome.type, lastIncome.clientName].filter(Boolean).join(" · ")}
-            </span>
-          </span>
-          <span className="shrink-0 text-sm font-semibold text-muted-foreground tabular-nums">
-            +{fmtMoney(lastIncome.amount)}
-          </span>
-        </button>
-      )}
+      {/* ─── Кнопка записи — всегда наверху, листать не нужно ─── */}
+      <button
+        onClick={() => openAdd()}
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground transition-colors hover:bg-primary/85 active:scale-[0.99]"
+      >
+        <Plus className="h-4 w-4" />
+        Записать операцию
+      </button>
 
       {/* ─── Открытые доплаты ─── */}
       {monthDeals.length > 0 && (
@@ -410,30 +373,26 @@ export function LedgerView() {
       {groups.length === 0 ? (
         <button
           onClick={() => openAdd()}
-          className="block w-full rounded-[28px] border border-dashed border-foreground/20 p-8 text-center transition-colors hover:bg-card"
+          className="block w-full rounded-[28px] border border-dashed border-foreground/20 p-6 text-center transition-colors hover:bg-card"
           aria-label="Записать первую операцию за этот месяц"
         >
-          <Wallet className="mx-auto h-9 w-9 text-muted-foreground/60" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            В {MONTHS_NOM[m - 1]}е пока пусто
+          <Wallet className="mx-auto h-8 w-8 text-muted-foreground/60" />
+          <p className="mt-2.5 text-sm text-muted-foreground">
+            В {MONTHS_NOM[m - 1]}е пока пусто — нажмите кнопку выше
           </p>
-          <span className="mt-4 inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Записать операцию
-          </span>
         </button>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {groups.map(([date, ops]) => {
             const [, mm, dd] = date.split("-").map(Number);
             const wd = WEEKDAYS_SHORT[new Date(Number(date.slice(0, 4)), mm - 1, dd).getDay()];
             return (
               <div key={date} className="flex gap-3">
-                <div className="w-9 shrink-0 pt-3">
+                <div className="w-9 shrink-0 pt-2.5">
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{wd}</div>
                   <div className="text-xl font-bold leading-tight tabular-nums">{dd}</div>
                 </div>
-                <div className="min-w-0 flex-1 space-y-2">
+                <div className="min-w-0 flex-1 space-y-1.5">
                   {ops.map((op) => (
                     <OperationRow key={op.id} op={op} />
                   ))}

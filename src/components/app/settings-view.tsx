@@ -99,13 +99,27 @@ function ChipEditor({
   items,
   onAdd,
   onRemove,
+  onRestore,
 }: {
   label: string;
   items: string[];
   onAdd: (v: string) => void;
   onRemove: (v: string) => void;
+  onRestore: (v: string, index: number) => void;
 }) {
   const [value, setValue] = useState("");
+  // удаление чипа всегда можно отменить: помним исходную позицию
+  const remove = (t: string) => {
+    const idx = items.indexOf(t);
+    onRemove(t);
+    toast.success(`«${t}» удалено`, {
+      duration: 8000,
+      action: {
+        label: "Вернуть",
+        onClick: () => onRestore(t, idx),
+      },
+    });
+  };
   return (
     <div>
       <div className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</div>
@@ -114,7 +128,7 @@ function ChipEditor({
           <Badge key={t} variant="secondary" className="gap-1 py-1 pl-2.5 pr-1">
             {t}
             <button
-              onClick={() => onRemove(t)}
+              onClick={() => remove(t)}
               aria-label={`Удалить ${t}`}
               className="rounded-full p-0.5 hover:bg-background/80"
             >
@@ -511,18 +525,21 @@ export function SettingsView() {
           items={store.categories.incomeTypes}
           onAdd={store.addIncomeType}
           onRemove={store.removeIncomeType}
+          onRestore={(v, i) => store.restoreCategory("incomeTypes", v, i)}
         />
         <ChipEditor
           label="Источники клиентов"
           items={store.categories.sources}
           onAdd={store.addSource}
           onRemove={store.removeSource}
+          onRestore={(v, i) => store.restoreCategory("sources", v, i)}
         />
         <ChipEditor
           label="Типы расхода"
           items={store.categories.expenseTypes}
           onAdd={store.addExpenseType}
           onRemove={store.removeExpenseType}
+          onRestore={(v, i) => store.restoreCategory("expenseTypes", v, i)}
         />
       </SectionCard>
 
